@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jodex Board</title>
+<style>
+:root{
+  --bg:#060606;--panel:#0c0c0c;--card:linear-gradient(180deg,#0f0f0f,#090909);--line:#1c1c1b;--line2:#262624;
+  --text:#f3f2ee;--muted:#8d8b84;--faint:#5e5c55;--track:#141413;
+  --ok:#5fe08a;--okbg:#122016;--bad:#ff6b5b;--badbg:#2a1210;--warn:#f1c96b;--warnbg:#2a2412;--info:#7c9cff;--infobg:#141b2e;
+  --none:#8d8b84;--nonebg:#161615;--empty:#151514;--accent:#b38cff;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --bg:#f5f5f3;--panel:#fff;--card:#fff;--line:#ebeae6;--line2:#dedcd6;--text:#1d1c1a;--muted:#77756f;--faint:#a9a7a0;--track:#f2f1ed;
+  --ok:#2f7d3b;--okbg:#e8f5e9;--bad:#b4401b;--badbg:#fcebe4;--warn:#946200;--warnbg:#fbf2d7;--info:#3557c9;--infobg:#e9eefc;
+  --none:#77756f;--nonebg:#f2f1ed;--empty:#eeede9;--accent:#7a4fd6}}
+:root[data-theme="light"]{
+  --bg:#f5f5f3;--panel:#fff;--card:#fff;--line:#ebeae6;--line2:#dedcd6;--text:#1d1c1a;--muted:#77756f;--faint:#a9a7a0;--track:#f2f1ed;
+  --ok:#2f7d3b;--okbg:#e8f5e9;--bad:#b4401b;--badbg:#fcebe4;--warn:#946200;--warnbg:#fbf2d7;--info:#3557c9;--infobg:#e9eefc;
+  --none:#77756f;--nonebg:#f2f1ed;--empty:#eeede9;--accent:#7a4fd6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif}
+.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+aside{border-right:1px solid var(--line);padding:18px 8px;display:flex;flex-direction:column;background:var(--panel)}
+.brand{display:flex;gap:10px;align-items:center;padding:0 8px 22px;font:600 15px var(--mono)}
+.brand i{width:22px;height:22px;border-radius:6px;background:conic-gradient(var(--ok),var(--info),var(--accent),var(--warn),var(--ok))}
+.label{font-size:11px;letter-spacing:.12em;color:var(--faint);padding:0 8px 8px;text-transform:uppercase}
+.proj{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;color:var(--muted);cursor:pointer;font-size:13px}
+.proj:hover{background:var(--track)}.proj.on{background:var(--track);color:var(--text)}
+.proj .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}.proj .n{margin-left:auto;font:12px var(--mono);color:var(--faint)}
+.foot{margin-top:auto;border-top:1px solid var(--line);padding:12px 8px 0;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--faint)}
+.foot button{background:none;border:1px solid var(--line2);color:var(--muted);border-radius:6px;padding:4px 8px;cursor:pointer}
+main{padding:28px 32px 40px;max-width:1240px;width:100%;margin:0 auto}
+.crumb{font-size:12px;color:var(--faint)}.crumb b{color:var(--muted);font-weight:500}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:4px 0 18px}
+h1{margin:0;font-size:24px;letter-spacing:-.01em}.sub{color:var(--muted);font-size:13px;margin-top:2px}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:9px;padding:3px;gap:2px;background:var(--panel)}
+.seg button{background:none;border:0;color:var(--muted);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px}
+.seg button.on{background:var(--track);color:var(--text)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;position:relative;overflow:hidden}
+.kpi{padding:16px 18px 0;height:150px;display:flex;flex-direction:column}
+.kpi .k{font-size:12px;color:var(--muted);display:flex;gap:7px;align-items:center}.kpi .k i{width:7px;height:7px;border-radius:50%}
+.kpi .v{font:500 28px/1.2 var(--mono);margin-top:8px}.kpi .h{font-size:11px;color:var(--faint)}
+.kpi svg{position:absolute;left:0;right:0;bottom:0;width:100%;height:56px}
+.main{margin-top:14px;padding:18px 20px}
+.main .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.main .t{font-size:12px;color:var(--muted)}.main .big{font:500 34px/1.15 var(--mono)}
+#chart{width:100%;height:280px;display:block;margin-top:10px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:6px}.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+.grid2{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(0,1fr);gap:14px;margin-top:14px;align-items:start}
+.pad{padding:18px 20px}.ct{font-weight:600}.ct span{color:var(--faint);font-weight:400;margin-left:4px}
+.search{background:var(--panel);border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:7px 10px;width:220px;font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-weight:400;color:var(--faint);text-align:left;padding:6px 6px;border-bottom:1px solid var(--line);font-size:11.5px}
+td{padding:10px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
+.tablewrap{overflow-x:auto;margin-top:12px}
+.req{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.meta{color:var(--faint);font-size:11px;margin-top:2px}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;font-size:11px;white-space:nowrap}
+.pill:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.s-verified{color:var(--ok);background:var(--okbg)}.s-failed_verification{color:var(--bad);background:var(--badbg)}
+.s-review_required{color:var(--warn);background:var(--warnbg)}.s-blocked{color:var(--bad);background:var(--badbg)}
+.s-in_progress{color:var(--info);background:var(--infobg)}
+.r-critical{color:var(--bad)}.r-elevated{color:var(--warn)}.r-low{color:var(--muted)}
+.bars .row{display:grid;grid-template-columns:130px 1fr 34px;gap:10px;align-items:center;font-size:12px;margin:8px 0}
+.bars .track{height:8px;background:var(--track);border-radius:4px;overflow:hidden}.bars .fill{height:100%;border-radius:4px}
+.bars .row span:last-child{text-align:right;font-family:var(--mono);color:var(--muted)}
+.sect{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:18px 0 4px}
+#heat{display:grid;grid-template-columns:repeat(12,1fr);grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px;margin-top:10px}
+#heat i{border-radius:3px;background:var(--empty)}
+.stats .row{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:10px 0;font-size:13px}
+.stats .row b{font:500 13px var(--mono)}
+.chip{display:inline-block;border:1px solid var(--line2);border-radius:6px;padding:1px 6px;font:11px var(--mono);color:var(--muted);margin:2px 4px 0 0;white-space:nowrap}
+.chip.jev{color:var(--accent);border-color:var(--accent)}.chip.warn{color:var(--warn);border-color:var(--warn)}.chip.bad{color:var(--bad);border-color:var(--bad)}
+.dist{display:flex;height:9px;border-radius:3px;overflow:hidden;background:var(--track);min-width:120px}.dist i{display:block;height:100%}
+.dlab{font:10.5px var(--mono);color:var(--faint);margin-top:3px;white-space:nowrap}
+.pbar{position:relative;height:9px;background:var(--track);border-radius:3px;min-width:90px}.pbar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.pbar b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);opacity:.6}
+.full{margin-top:14px}.explain{color:var(--muted);font-size:12.5px;margin:6px 0 4px;max-width:900px}
+.cal{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}
+.cal .box{border:1px solid var(--line);border-radius:10px;padding:12px}.cal .box .k{font-size:11.5px;color:var(--muted)}.cal .box .v{font:500 22px var(--mono);margin-top:4px}.cal .box .h{font-size:11px;color:var(--faint)}
+@media (max-width:900px){.cal{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.note{color:var(--faint);font-size:11.5px;margin-top:22px}
+.empty{color:var(--muted);padding:30px 0;text-align:center}
+@media (max-width:900px){.app{grid-template-columns:1fr}aside{display:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2{grid-template-columns:1fr}main{padding:20px 16px}.search{width:100%}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><i></i>jodex</div>
+    <div class="label">Projects</div>
+    <div id="projects"></div>
+    <div class="foot"><span>Local board<br><span id="gen"></span></span><button id="theme" title="Toggle theme">◐</button></div>
+  </aside>
+  <main>
+    <div class="crumb">Board / <b id="crumb"></b></div>
+    <div class="head">
+      <div><h1 id="title"></h1><div class="sub" id="subtitle"></div></div>
+      <div class="seg" id="range"><button data-d="7">7d</button><button data-d="30" class="on">30d</button><button data-d="90">90d</button><button data-d="0">All</button></div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="card main">
+      <div class="top">
+        <div><div class="t" id="chartTitle"></div><div class="big" id="chartBig"></div></div>
+        <div class="seg" id="metric"><button data-m="runs" class="on">Runs</button><button data-m="time">Time</button><button data-m="files">Files</button></div>
+      </div>
+      <svg id="chart" preserveAspectRatio="none"></svg>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="grid2">
+      <div class="card pad">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="ct">Runs<span id="runCount"></span></div>
+          <input class="search" id="search" placeholder="Search runs">
+        </div>
+        <div class="tablewrap"><table><thead><tr><th>Request</th><th>Model</th><th>Risk</th><th class="num">Files</th><th>Checks</th><th class="num">Gate</th><th class="num">Time</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+        <div class="empty" id="empty" hidden>No runs in this range yet. Edit files in an initialized project and they appear here.</div>
+      </div>
+      <div class="card pad">
+        <div class="ct">Outcomes</div>
+        <div class="bars" id="statusBars"></div>
+        <div class="sect">Risk</div>
+        <div class="bars" id="riskBars"></div>
+        <div class="sect">Activity, last 12 weeks</div>
+        <div id="heat"></div>
+        <div class="stats" id="stats" style="margin-top:14px"></div>
+      </div>
+    </div>
+    <div class="card pad full">
+      <div class="ct">How Jev decides<span id="decCount"></span></div>
+      <div class="explain" id="explain"></div>
+      <div class="cal" id="cal"></div>
+      <div class="tablewrap"><table><thead><tr><th>Prompt</th><th>Workflow (choice)</th><th>Risk (score)</th><th>Missing rule (noul)</th><th>Action</th><th class="num">Latency</th><th>Outcome</th></tr></thead><tbody id="decRows"></tbody></table></div>
+      <div id="calwrap" hidden><div class="sect">Calibration: Jev's probabilities against what happened (written by <code>jodex calibrate</code>, automatic every 10 closed runs)</div><div id="calib" class="explain"></div></div>
+      <div id="d2wrap" hidden><div class="sect">Command gate (D2): shell commands the rules did not settle</div>
+      <div class="tablewrap"><table><thead><tr><th>Command</th><th>Jev (score)</th><th>Result</th><th class="num">Latency</th></tr></thead><tbody id="d2"></tbody></table></div></div>
+      <div id="d4wrap" hidden><div class="sect">Review findings (D4): reviewer blockers that Jev confirms or disputes</div>
+      <div class="tablewrap"><table><thead><tr><th>Finding</th><th>Jev (choice)</th><th>Result</th><th class="num">Latency</th></tr></thead><tbody id="d4"></tbody></table></div></div>
+      <div class="empty" id="decEmpty" hidden>No Jev decisions in this range. Enable them per project with <code>[jev] mode = "enforce"</code> and <code>consent = true</code> in <code>.jodex/config.toml</code> (or <code>jodex init --jev</code>).</div>
+    </div>
+    <div class="note">Measured by Jodex hooks and <code>jodex check</code>. Status comes from check results bound to the current source, not from what the agent says. "Gate" counts finishes the Stop gate sent back. Nothing here is estimated.</div>
+  </main>
+</div>
+<script>
+const DATA = /*__DATA__*/null || { generatedAt: new Date().toISOString(), projects: [], runs: [] };
+const STATUS = [
+  ['verified', 'Verified', 'var(--ok)'], ['review_required', 'Review required', 'var(--warn)'],
+  ['failed_verification', 'Failed verification', 'var(--bad)'], ['blocked', 'Blocked', 'var(--accent)'], ['in_progress', 'In progress', 'var(--info)'],
+];
+const RISK = [['low', 'Low', 'var(--none)'], ['elevated', 'Elevated', 'var(--warn)'], ['critical', 'Critical', 'var(--bad)']];
+const state = { project: null, days: 30, metric: 'runs', q: '' };
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+const dur = (r) => (r.finishedAt ? Math.max(0, new Date(r.finishedAt) - new Date(r.createdAt)) : null);
+const fmtDur = (ms) => { if (ms == null) return '—'; const s = Math.round(ms / 1000); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`; };
+const fmtDate = (d) => new Date(d).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const median = (xs) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+
+try { const t = new URLSearchParams(location.search).get('theme') || localStorage.getItem('jodex-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+$('theme').onclick = () => {
+  const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  const next = cur === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('jodex-theme', next); } catch {}
+};
+
+function scoped() {
+  const since = state.days ? Date.now() - state.days * 864e5 : 0;
+  return DATA.runs.filter((r) => (!state.project || r.project === state.project) && new Date(r.createdAt) >= since);
+}
+
+function days() {
+  const n = state.days || Math.max(7, Math.ceil((Date.now() - Math.min(Date.now(), ...DATA.runs.map((r) => +new Date(r.createdAt)))) / 864e5) + 1);
+  return Array.from({ length: n }, (_, i) => dayKey(Date.now() - (n - 1 - i) * 864e5));
+}
+
+function spark(values, color) {
+  const max = Math.max(1, ...values), w = 100, h = 40;
+  const pts = values.map((v, i) => `${(i / Math.max(1, values.length - 1)) * w},${h - (v / max) * (h - 4) - 2}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polygon points="0,${h} ${pts} ${w},${h}" fill="${color}" opacity=".12"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+function renderSidebar() {
+  const box = $('projects'); box.replaceChildren();
+  const add = (name, count, value) => {
+    const d = el('div', 'proj' + (state.project === value ? ' on' : ''));
+    if (value) d.append(el('span', 'dot'));
+    d.append(el('span', null, name), el('span', 'n', String(count)));
+    d.onclick = () => { state.project = value; render(); };
+    box.append(d);
+  };
+  add('All projects', DATA.runs.length, null);
+  for (const p of DATA.projects) add(p.name, DATA.runs.filter((r) => r.project === p.name).length, p.name);
+}
+
+function render() {
+  const runs = scoped(), ds = days();
+  const title = state.project || 'All projects';
+  $('crumb').textContent = title; $('title').textContent = title;
+  const first = runs.length ? runs.reduce((a, r) => (r.createdAt < a ? r.createdAt : a), runs[0].createdAt) : null;
+  $('subtitle').textContent = runs.length ? `${runs.length} run${runs.length > 1 ? 's' : ''} since ${new Date(first).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No runs in this range';
+  $('gen').textContent = new Date(DATA.generatedAt).toLocaleString();
+  renderSidebar();
+
+  const perDay = (f) => ds.map((d) => runs.filter((r) => dayKey(r.createdAt) === d).reduce((s, r) => s + f(r), 0));
+  const finished = runs.filter((r) => r.status !== 'in_progress');
+  const verified = runs.filter((r) => r.status === 'verified').length;
+  const blocks = runs.reduce((s, r) => s + r.stopBlocks, 0);
+  const label = state.days ? `last ${state.days} days` : 'all time';
+  const kpis = [
+    ['Runs', String(runs.length), label, 'var(--info)', perDay(() => 1)],
+    ['Verified', finished.length ? `${Math.round((verified / finished.length) * 100)}%` : '—', `${verified} of ${finished.length} finished`, 'var(--ok)', perDay((r) => (r.status === 'verified' ? 1 : 0))],
+    ['Gate catches', String(blocks), 'unsupported finishes sent back', 'var(--warn)', perDay((r) => r.stopBlocks)],
+    ['Median time', fmtDur(median(runs.map(dur).filter((x) => x != null))), 'first edit to finish', 'var(--accent)', perDay((r) => (dur(r) || 0) / 1000)],
+  ];
+  $('kpis').innerHTML = '';
+  for (const [k, v, h, c, series] of kpis) {
+    const card = el('div', 'card kpi');
+    const head = el('div', 'k'); const dot = el('i'); dot.style.background = c; head.append(dot, k);
+    card.append(head, el('div', 'v', v), el('div', 'h', h));
+    card.insertAdjacentHTML('beforeend', spark(series, c));
+    $('kpis').append(card);
+  }
+
+  renderChart(runs, ds, label);
+  renderTable(runs);
+  renderSide(runs);
+  renderDecisions();
+}
+
+function renderChart(runs, ds, label) {
+  const svg = $('chart'), W = 1000, H = 280, pad = 24, bw = (W - pad * 2) / ds.length;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  let body = `<line x1="${pad}" x2="${W - pad}" y1="${H - 30}" y2="${H - 30}" stroke="var(--line2)"/>`;
+  const legend = $('legend'); legend.replaceChildren();
+  const ticks = ds.length <= 14 ? 1 : Math.ceil(ds.length / 7);
+  ds.forEach((d, i) => { if (i % ticks === 0) body += `<text x="${pad + i * bw + bw / 2}" y="${H - 10}" fill="var(--faint)" font-size="11" text-anchor="middle" font-family="ui-monospace,monospace">${new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</text>`; });
+  const byDay = ds.map((d) => runs.filter((r) => dayKey(r.createdAt) === d));
+  if (state.metric === 'runs') {
+    const max = Math.max(1, ...byDay.map((x) => x.length));
+    byDay.forEach((list, i) => {
+      let y = H - 30;
+      for (const [key, , color] of STATUS) {
+        const n = list.filter((r) => r.status === key).length; if (!n) continue;
+        const h = (n / max) * (H - 60);
+        y -= h;
+        body += `<rect x="${pad + i * bw + bw * 0.18}" y="${y}" width="${bw * 0.64}" height="${h}" rx="2" fill="${color}"><title>${dateLabel(ds[i])}: ${n} ${key.replace('_', ' ')}</title></rect>`;
+      }
+    });
+    for (const [, name, color] of STATUS) { const s = el('span'); const i = el('i'); i.style.background = color; s.append(i, name); legend.append(s); }
+    $('chartTitle').textContent = `Runs, ${label}`; $('chartBig').textContent = String(runs.length);
+  } else {
+    const f = state.metric === 'time' ? (list) => list.reduce((s, r) => s + (dur(r) || 0), 0) : (list) => list.reduce((s, r) => s + r.files, 0);
+    const vals = byDay.map(f), max = Math.max(1, ...vals), color = state.metric === 'time' ? 'var(--accent)' : 'var(--ok)';
+    const pts = vals.map((v, i) => `${pad + i * bw + bw / 2},${H - 30 - (v / max) * (H - 60)}`).join(' ');
+    body += `<polygon points="${pad + bw / 2},${H - 30} ${pts} ${pad + (vals.length - 1) * bw + bw / 2},${H - 30}" fill="${color}" opacity=".15"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>`;
+    const total = vals.reduce((a, b) => a + b, 0);
+    $('chartTitle').textContent = state.metric === 'time' ? `Run time, ${label}` : `Files touched, ${label}`;
+    $('chartBig').textContent = state.metric === 'time' ? fmtDur(total) : String(total);
+  }
+  svg.innerHTML = body;
+}
+const dateLabel = (k) => new Date(k + 'T00:00:00').toLocaleDateString();
+
+function renderTable(runs) {
+  const q = state.q.toLowerCase();
+  const list = runs.filter((r) => !q || `${r.request} ${r.project} ${r.status} ${r.host}`.toLowerCase().includes(q)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  $('runCount').textContent = String(list.length);
+  const tb = $('rows'); tb.replaceChildren();
+  $('empty').hidden = list.length > 0;
+  for (const r of list) {
+    const tr = el('tr');
+    const c1 = el('td'); const req = el('div', 'req', r.request || '(started by jodex check)'); req.title = r.request;
+    c1.append(req, el('div', 'meta', [r.project, fmtDate(r.createdAt), r.decision].filter(Boolean).join(' · ')));
+    const checks = el('td', 'meta'); checks.textContent = r.checks.length ? r.checks.map((c) => `${c.exitCode === 0 ? '✓' : '✗'} ${c.name}`).join('  ') : 'not run';
+    const st = el('td'); st.append(el('span', `pill s-${r.status}`, r.status.replace(/_/g, ' ')));
+    const mc = el('td');
+    mc.append(el('span', 'chip', r.model || (r.host === 'codex' ? 'codex' : r.host === 'claude-code' ? 'claude' : 'cli')));
+    if (r.jevModel) mc.append(el('span', 'chip jev', r.jevModel));
+    if (r.mode && r.mode !== 'solo') mc.append(el('span', 'chip warn', r.mode));
+    for (const v of r.reviews || []) {
+      const c = el('span', `chip ${v.status === 'no_blocking_findings' ? '' : 'bad'}`, `${v.round} ${v.status === 'no_blocking_findings' ? '✓' : v.status === 'changes_required' ? `✗${v.blockers}${v.disputed ? `+${v.disputed}?` : ''}` : v.status || '…'}${v.reviewer ? ` · ${v.reviewer.replace('claude-code', 'claude')}` : ''}`);
+      if (v.costUsd != null) c.title = `review cost $${v.costUsd.toFixed(4)}`;
+      mc.append(c);
+    }
+    if (r.plans) mc.append(el('span', 'chip', `plan×${r.plans}`));
+    const rc = el('td', `r-${r.risk}`, r.risk);
+    if (r.jevRaised) rc.append(el('div', 'meta', 'raised by Jev'));
+    tr.append(c1, mc, rc, el('td', 'num', String(r.files)), checks, el('td', 'num', String(r.stopBlocks)), el('td', 'num', fmtDur(dur(r))), st);
+    tb.append(tr);
+  }
+}
+
+function bars(box, defs, runs, key) {
+  box.replaceChildren();
+  const max = Math.max(1, runs.length);
+  for (const [k, name, color] of defs) {
+    const n = runs.filter((r) => r[key] === k).length;
+    const row = el('div', 'row'); const track = el('div', 'track'); const fill = el('div', 'fill');
+    fill.style.width = `${(n / max) * 100}%`; fill.style.background = color; track.append(fill);
+    row.append(el('span', null, name), track, el('span', null, String(n)));
+    box.append(row);
+  }
+}
+
+function renderSide(runs) {
+  bars($('statusBars'), STATUS, runs, 'status');
+  bars($('riskBars'), RISK, runs, 'risk');
+  const all = DATA.runs.filter((r) => !state.project || r.project === state.project);
+  const heat = $('heat'); heat.replaceChildren();
+  const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - start.getDay() - 77);
+  const counts = {}; for (const r of all) counts[dayKey(r.createdAt)] = (counts[dayKey(r.createdAt)] || 0) + 1;
+  const maxC = Math.max(1, ...Object.values(counts));
+  for (let i = 0; i < 84; i++) {
+    const k = dayKey(+start + i * 864e5), n = counts[k] || 0, cell = el('i');
+    if (n) { cell.style.background = 'var(--ok)'; cell.style.opacity = String(0.3 + 0.7 * (n / maxC)); }
+    cell.title = `${k}: ${n} run${n === 1 ? '' : 's'}`; heat.append(cell);
+  }
+  const perDay = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const durs = runs.map(dur).filter((x) => x != null);
+  const rows = [
+    ['Active days (12 weeks)', String(Object.keys(counts).filter((k) => new Date(k) >= start).length)],
+    ['Busiest day', perDay ? `${perDay[0]} · ${perDay[1]}` : '—'],
+    ['Longest run', fmtDur(durs.length ? Math.max(...durs) : null)],
+    ['Average files per run', runs.length ? (runs.reduce((s, r) => s + r.files, 0) / runs.length).toFixed(1) : '—'],
+    ['Hosts', [...new Set(runs.map((r) => r.host || 'cli'))].join(', ') || '—'],
+  ];
+  const box = $('stats'); box.replaceChildren();
+  for (const [k, v] of rows) { const row = el('div', 'row'); row.append(el('span', null, k), el('b', null, v)); box.append(row); }
+}
+
+const MODES = [['solo', 'var(--ok)'], ['review', 'var(--info)'], ['collaborative', 'var(--accent)'], ['clarify', 'var(--warn)']];
+const RISKC = [['low', 'var(--none)'], ['elevated', 'var(--warn)'], ['critical', 'var(--bad)']];
+const pct = (x) => `${Math.round(x * 100)}%`;
+function dist(probs, defs, picked) {
+  const wrap = el('div'); const bar = el('div', 'dist');
+  for (const [k, c] of defs) { const i = el('i'); i.style.width = pct(probs[k] || 0); i.style.background = c; i.title = `${k}: ${(probs[k] || 0).toFixed(2)}`; bar.append(i); }
+  wrap.append(bar, el('div', 'dlab', `${picked} ${(probs[picked] || 0).toFixed(2)}`));
+  return wrap;
+}
+function pbar(p, threshold) {
+  const wrap = el('div'); const bar = el('div', 'pbar'); const f = el('i'); const t = el('b');
+  f.style.width = pct(p); f.style.background = p >= threshold ? 'var(--warn)' : 'var(--none)'; t.style.left = pct(threshold); t.title = `threshold ${threshold}`;
+  bar.append(f, t); wrap.append(bar, el('div', 'dlab', `p ${p.toFixed(2)} · cut ${threshold}`));
+  return wrap;
+}
+function scopedDecisions() {
+  const since = state.days ? Date.now() - state.days * 864e5 : 0;
+  return (DATA.decisions || []).filter((d) => (!state.project || d.project === state.project) && new Date(d.ts) >= since);
+}
+function renderDecisions() {
+  const every = scopedDecisions(), all = every.filter((d) => (d.point || 'D1') === 'D1'), jevd = all.filter((d) => d.source === 'jev');
+  renderD4(every.filter((d) => d.point === 'D4'));
+  renderD2(every.filter((d) => d.point === 'D2'));
+  renderCalibration();
+  $('decCount').textContent = String(all.length);
+  const t = (jevd[0] || all[0] || {}).thresholds || { clarify: 0.6, missingRule: 0.7, raiseRisk: 0.5, recommendMode: 0.5 };
+  $('explain').textContent = `At each prompt Jodex asks Jev four typed questions about the prompt and project metadata (never source): does it change files (noul), which workflow fits (choice of solo, review, collaborative, clarify), how bad a wrong implementation would be (score low/elevated/critical), and is a business rule missing (noul). Jev returns a probability for every option. Jodex acts only on probabilities over fixed cut-offs: ask the developer first when clarify ≥ ${t.clarify} or missing rule ≥ ${t.missingRule}; raise the risk floor when elevated or critical ≥ ${t.raiseRisk}; record the workflow when its probability ≥ ${t.recommendMode}. Jev can only make a run stricter, never looser than the file rules. Timeouts and errors fall back to rules alone. TypeSafe states these probabilities are calibrated; the boxes below check that claim against what actually happened here.`;
+  const settled = jevd.filter((d) => d.outcome);
+  const brier = settled.length ? settled.reduce((s, d) => s + (d.answers.isChange - (d.outcome.changed ? 1 : 0)) ** 2, 0) / settled.length : null;
+  const changeHits = settled.filter((d) => (d.answers.isChange >= 0.5) === d.outcome.changed).length;
+  const withRisk = settled.filter((d) => d.outcome.ruleRisk);
+  const order = ['low', 'elevated', 'critical'];
+  const riskAgree = withRisk.filter((d) => d.answers.risk.value === d.outcome.ruleRisk).length;
+  const riskAbove = withRisk.filter((d) => order.indexOf(d.answers.risk.value) > order.indexOf(d.outcome.ruleRisk)).length;
+  const lat = jevd.map((d) => d.latencyMs).sort((a, b) => a - b);
+  const q = (p) => (lat.length ? lat[Math.min(lat.length - 1, Math.floor(p * lat.length))] : null);
+  const boxes = [
+    ['Change prediction', settled.length ? pct(changeHits / settled.length) : '—', settled.length ? `p≥0.5 matched edits in ${changeHits}/${settled.length}; Brier ${brier.toFixed(3)} (0 is perfect)` : 'no settled prompts yet'],
+    ['Risk vs file rules', withRisk.length ? pct(riskAgree / withRisk.length) : '—', withRisk.length ? `same level in ${riskAgree}/${withRisk.length}; Jev stricter in ${riskAbove}` : 'no runs with files yet'],
+    ['Mean risk confidence', jevd.length ? (jevd.reduce((s, d) => s + d.answers.risk.confidence, 0) / jevd.length).toFixed(2) : '—', '1 = all probability on one level'],
+    ['Latency p50 / p95', lat.length ? `${q(0.5)} / ${q(0.95)} ms` : '—', `${all.length - jevd.length} fallback of ${all.length} calls`],
+  ];
+  const cal = $('cal'); cal.replaceChildren();
+  for (const [k, v, h] of boxes) { const b = el('div', 'box'); b.append(el('div', 'k', k), el('div', 'v', v), el('div', 'h', h)); cal.append(b); }
+  const tb = $('decRows'); tb.replaceChildren();
+  $('decEmpty').hidden = all.length > 0;
+  for (const d of [...all].sort((a, b) => b.ts.localeCompare(a.ts))) {
+    const tr = el('tr');
+    const c1 = el('td'); const req = el('div', 'req', d.request || '(prompt not sent: data level 1)'); req.title = d.request;
+    c1.append(req, el('div', 'meta', [d.project, fmtDate(d.ts), d.model || d.source, d.actedOn ? 'enforce' : d.source === 'jev' ? 'shadow' : null].filter(Boolean).join(' · ')));
+    tr.append(c1);
+    if (d.source !== 'jev') {
+      const td = el('td', 'meta', `fallback to rules: ${d.error || 'unavailable'}`); td.colSpan = 4; tr.append(td);
+    } else {
+      const cells = [el('td'), el('td'), el('td'), el('td')];
+      cells[0].append(dist(d.answers.mode.probabilities, MODES, d.answers.mode.value));
+      cells[1].append(dist(d.answers.risk.probabilities, RISKC, d.answers.risk.value));
+      cells[2].append(pbar(d.answers.missingRule, d.thresholds.missingRule));
+      const a = d.action || {};
+      if (a.clarify) cells[3].append(el('span', 'chip warn', 'ask developer'));
+      if (a.riskFloor) cells[3].append(el('span', 'chip bad', `risk → ${a.riskFloor}`));
+      if (a.recommendedMode) cells[3].append(el('span', 'chip', `mode ${a.recommendedMode}`));
+      if (!d.actedOn) cells[3].append(el('span', 'chip', 'logged only'));
+      tr.append(...cells);
+    }
+    tr.append(el('td', 'num', `${d.latencyMs} ms`));
+    const oc = el('td');
+    if (!d.outcome) oc.append(el('span', 'meta', 'pending'));
+    else if (!d.outcome.changed) oc.append(el('span', 'meta', 'no edits'));
+    else oc.append(el('span', `pill s-${d.outcome.runStatus}`, d.outcome.runStatus.replace(/_/g, ' ')));
+    tr.append(oc);
+    tb.append(tr);
+  }
+}
+
+function renderD2(list) {
+  const box = $('d2'); box.replaceChildren();
+  $('d2wrap').hidden = !list.length;
+  for (const d of [...list].sort((a, b) => b.ts.localeCompare(a.ts))) {
+    const tr = el('tr'); const c1 = el('td'); const cmd = el('div', 'req', d.command || '(not sent: data level 1)'); cmd.title = d.command || '';
+    c1.append(cmd, el('div', 'meta', [d.project, fmtDate(d.ts)].join(' · '))); tr.append(c1);
+    if (d.source !== 'jev') { const td = el('td', 'meta', `fallback: ${d.error || ''}`); td.colSpan = 2; tr.append(td); }
+    else {
+      const c2 = el('td'); c2.append(dist(d.d2.probabilities, [['safe', 'var(--ok)'], ['caution', 'var(--warn)'], ['dangerous', 'var(--bad)']], ['safe', 'caution', 'dangerous'].reduce((a, k) => (d.d2.probabilities[k] > d.d2.probabilities[a] ? k : a), 'safe')));
+      const c3 = el('td'); c3.append(el('span', `chip ${d.d2.denied ? 'bad' : ''}`, d.d2.denied ? 'denied' : 'allowed'));
+      tr.append(c2, c3);
+    }
+    tr.append(el('td', 'num', `${d.latencyMs} ms`)); box.append(tr);
+  }
+}
+function renderCalibration() {
+  const list = (DATA.calibrations || []).filter((c) => !state.project || c.project === state.project);
+  $('calwrap').hidden = !list.length;
+  const box = $('calib'); box.replaceChildren();
+  for (const c of list) {
+    const head = el('div'); head.append(el('b', null, c.project), ` · ${fmtDate(c.ts)}${c.auto ? ' · automatic' : ''} · risk cut in use ${c.raiseRiskInUse}${c.applied ? ` (moved from ${c.raiseRisk.current})` : ''}. ${c.raiseRisk.proposed === null ? c.raiseRisk.reason : `Best cut ${c.raiseRisk.proposed}, balanced accuracy ${c.raiseRisk.balancedAccuracy}.`}`);
+    box.append(head);
+    for (const s of c.signals) {
+      const line = el('div', 'meta', `${s.signal}: ${s.n} labeled, ${s.positives} positive (${s.label})${s.brier !== null ? `, Brier ${s.brier}` : ''}${s.reliability.length ? ' · ' + s.reliability.map((b) => `p ${b.band}: predicted ${b.predicted} / observed ${b.observed} (n ${b.n})`).join(' · ') : ''}`);
+      box.append(line);
+    }
+  }
+}
+function renderD4(list) {
+  const box = $('d4'); box.replaceChildren();
+  $('d4wrap').hidden = !list.length;
+  for (const d of [...list].sort((a, b) => b.ts.localeCompare(a.ts))) {
+    const tr = el('tr');
+    const c1 = el('td'); const req = el('div', 'req', d.finding ? d.finding.issue : ''); req.title = req.textContent;
+    c1.append(req, el('div', 'meta', [d.project, fmtDate(d.ts), d.finding && `${d.finding.round} · ${d.finding.location}`].filter(Boolean).join(' · ')));
+    tr.append(c1);
+    if (d.source !== 'jev') { const td = el('td', 'meta', `fallback: ${d.error || ''}`); td.colSpan = 2; tr.append(td); }
+    else {
+      const c2 = el('td'); c2.append(dist(d.d4.probabilities, [['blocker', 'var(--bad)'], ['nonblocker', 'var(--none)'], ['question', 'var(--warn)']], d.d4.label));
+      const c3 = el('td'); const ok = d.d4.probabilities.blocker >= d.thresholds.blocker;
+      c3.append(el('span', `chip ${ok ? 'bad' : 'warn'}`, ok ? 'confirmed blocker' : 'disputed → developer'));
+      if (!d.actedOn) c3.append(el('span', 'chip', 'logged only'));
+      tr.append(c2, c3);
+    }
+    tr.append(el('td', 'num', `${d.latencyMs} ms`));
+    box.append(tr);
+  }
+}
+
+for (const b of $('range').querySelectorAll('button')) b.onclick = () => { state.days = +b.dataset.d; $('range').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); render(); };
+for (const b of $('metric').querySelectorAll('button')) b.onclick = () => { state.metric = b.dataset.m; $('metric').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); render(); };
+$('search').oninput = (e) => { state.q = e.target.value; renderTable(scoped()); };
+render();
+</script>
+</body>
+</html>

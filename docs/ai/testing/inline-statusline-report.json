@@ -1,0 +1,87 @@
+{
+  "kind": "inline-native-statusline-validation",
+  "recordedAt": "2026-11-20T19:57:56.455192+00:00",
+  "scope": "DX1 inline Claude command and read-only Codex MCP footer; synthetic local CLI/protocol/config flows",
+  "sourceSha256": {
+    "src/statusline.ts": "71a6b473bcd9bef8b88fcfbf4199f35df794209a8509efed061fa43b4e6491b7",
+    "src/cli.ts": "be132bf062e5b009d1719ad312360759a96d8ca42c965dd848902802125c2376",
+    "src/setup.ts": "8be1aa4fad08f50e9838be8ffc8b8eb54d2abbddf0a403225aeca4b632df2491",
+    "plugin/.codex-plugin/plugin.json": "e8463287394fa4e4d58221df6c109f6d2a76bb86abd2784bc7d7e08f1b229e2c",
+    "plugin/.codex-plugin/statusline.mcp.json": "447ab174b7201d2857b58019223120de4cbd39146e7b5f5dcf617f21bb7276e6",
+    "README.md": "5906a79dd499891bf5ae3850cc115e8e14106816f1f18d3ffb7130a305a4d1a5",
+    "test/statusline.test.ts": "c6f59501e53148f50cbc43178e271d8f720c002905a665339dc09754894a90dd",
+    "test/statusline-regression.test.ts": "c66dc42f4dc023b2a71e21d4aab9ea6ab7ddcdb252ca9c056b36ea3adb8701f1"
+  },
+  "checks": [
+    {
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "stdout": "\n> jodex@0.1.0 test\n> node --test test/*.test.ts\n\n✔ board lists registered projects and escapes request text (165.985541ms)\n✔ cut proposal needs enough labels of both kinds, then maximizes balanced accuracy (1.156958ms)\n✔ calibrate --apply moves the risk cut, logs it, and the config clamps it (159.295375ms)\n✔ automatic calibration runs once per 10 closed runs (74.270083ms)\n✔ D2 rules (1.132166ms)\n✔ D2 hook: rules deny without Jev, routine skips Jev, Jev decides the rest once per run (197.779542ms)\n✔ completion precedence (2.043166ms)\n✔ risk floor from globs (0.431541ms)\n✔ write paths from Claude tools and Codex patches (0.498041ms)\n✔ identity covers untracked files and ignores .jodex (162.931709ms)\n✔ identity works when .git is read-only (Codex workspace-write sandbox) (94.05ms)\n✔ checks bind to the source they ran on (161.06475ms)\n✔ claude-code work is reviewed by codex (540.124083ms)\n✔ codex work is reviewed by claude-code (336.882583ms)\n✔ uninitialized project: every hook is a no-op (142.610709ms)\n✔ question-only prompt: context injected, no run, stop allowed (108.672958ms)\n✔ task notification prompt is ignored (100.327041ms)\n✔ write creates a run; .jodex writes are denied (104.66625ms)\n✔ stop gate: blocks once, never loops, closes a reported verified run (176.103875ms)\n✔ shell-only edits are caught at stop through the prompt baseline (86.421083ms)\n✔ critical path keeps the run at review_required (93.553375ms)\n✔ shell edit to a critical path after `jodex check` still counts as critical (111.458208ms)\n✔ a reported status closes the run once only the developer can act; the next task starts fresh (188.934333ms)\n✔ the status must be the last line: an earlier quoted status does not count (81.208833ms)\n✔ managed block round-trips and replaces in place (0.443417ms)\n✔ init then uninstall restores existing files exactly (97.259042ms)\n✔ init in an empty project creates files that uninstall removes (73.558416ms)\n✔ check detection (168.540958ms)\n✔ D1 policy: thresholds, and Jev can only tighten (0.747833ms)\n✔ redaction removes common secrets (0.76ms)\n✔ enforce: Jev raises risk and asks to clarify; decision is logged and linked to the run (111.242875ms)\n✔ shadow logs without acting; failures fall back to rules (109.983708ms)\n✔ session file is removed once the turn ends (136.96475ms)\n✔ Claude model is read from the last assistant transcript entry (0.382083ms)\n✔ status footer uses only the displayed project and session and does not mutate state (254.337625ms)\n✔ decision footer distinguishes Jev, fallback, disabled and lack of consent (153.949792ms)\n✔ isolated Claude settings retain edits, file modes and a private backup (353.881041ms)\n✔ MCP responds after errors, routes each thread, and does not emit notification replies (183.949917ms)\n✔ Claude footer binds the displayed session, reports waiting honestly and never leaks request text (225.602208ms)\n✔ MCP footer advertises the native entrypoint and renders the displayed thread (177.840958ms)\n✔ explicit footer setup preserves developer settings and removes only its own footer (324.697417ms)\n✔ footer setup refuses a linked settings file instead of replacing the developer link (95.237375ms)\n✔ ReviewResult parsing and invariants (0.921792ms)\n✔ review mode: R0 blocks, one correction, fresh R1 verifies (361.277917ms)\n✔ correction budget: a second blocking round stops further edits (249.895084ms)\n✔ D4: a blocker Jev does not confirm goes to the developer (122.77725ms)\n✔ collaborative: plan first, same worker challenges, one revision (75.87ms)\n✔ tester may write only test files (60.328ms)\n✔ review packet covers only this run; other uncommitted work is context (89.572083ms)\n✔ review diff shows only this run's edits to a file that already had uncommitted changes (84.568584ms)\n✔ a reported status keeps the run open while the agent still has a step (79.869666ms)\n✔ read-only roles: shell bypasses are denied (0.244792ms)\n✔ Codex: a helper subagent finishing first is ignored, the real reviewer is recorded (98.647042ms)\n✔ a subagent that never reports stops blocking after the timeout or `cancel` (90.567708ms)\n✔ a blocker fixed through the shell still opens R1, and counts the correction (120.604875ms)\n✔ tester shell edits to production files are caught when it stops (73.6705ms)\n✔ 1: quoted or abbreviated write flags are not read-only (0.784333ms)\n✔ 2: a reviewer stays read-only after it is no longer awaited (188.064958ms)\n✔ 3, 4: the worker shell cannot write while locked, and no agent can accept (159.929708ms)\n✔ 5: a shell edit made before `review start` is in the review scope; a later one makes it stale (136.186333ms)\n✔ 7, 8: secrets in check commands and Basic auth are not sent (1.34ms)\n✔ 9: changing a check command makes its evidence stale (49.647334ms)\n✔ 11: disputed blockers are not washed away by another review on unchanged source (130.19225ms)\n✔ 12, 14: acceptance clears tester scope; a failing check outranks a blocked plan (42.63575ms)\n✔ 13: the risk raise uses P(elevated)+P(critical), the quantity calibration tunes (0.172167ms)\n✔ R1: brace expansion and textconv are not read-only (0.096709ms)\n✔ R1: agents cannot uninstall or accept, even quoted (67.338916ms)\n✔ R1: helper subagents and the tester shell cannot write in team mode (68.214917ms)\n✔ R1: a run opened by `jodex check` reviews the newest session's shell edits (85.334792ms)\n✔ R1: disputed blockers persist across rounds until the developer accepts this source (99.007875ms)\n✔ R1: a check named \"plan\" still outranks a blocked plan (40.967667ms)\n✔ R1: quoted Authorization and secret env values are redacted (0.232459ms)\n✔ locked worker: decorated workflow commands pass, file writes do not (0.187625ms)\n✔ R2: --textc, symlink vs file identity, legacy acceptance (49.618708ms)\n✔ R3: a cancelled reviewer stays a reviewer when a tester stage starts; late D4 results are dropped (99.319083ms)\nℹ tests 75\nℹ suites 0\nℹ pass 75\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 2001.234208\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "stdout": "\n> jodex@0.1.0 typecheck\n> tsc --noEmit\n\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "stdout": "\n> jodex@0.1.0 build\n> esbuild src/cli.ts --bundle --platform=node --format=esm --target=node22 --outfile=plugin/dist/jodex.mjs --banner:js=\"#!/usr/bin/env node\" && chmod +x plugin/dist/jodex.mjs\n\n",
+      "stderr": "\n  plugin/dist/jodex.mjs  163.5kb\n\n⚡ Done in 7ms\n"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "node",
+        "/tmp/jodex-inline-dx-smoke.cjs"
+      ],
+      "exitCode": 0,
+      "stdout": "PASS explicit Claude footer setup\nPASS Claude footer uses observed Jev and waiting reviewer\nPASS MCP discovery, session switch, invalid URI and recovery\nPASS footer reads left decision and run bytes unchanged\nPASS owned Claude footer removal preserves other settings\n",
+      "stderr": ""
+    }
+  ],
+  "providerCalls": 0,
+  "actualGlobalConfigChanges": false,
+  "nativeVisualAcceptance": "unverified",
+  "developerAcceptance": "not inferred",
+  "finalReview": {
+    "result": "REVIEW_PASS",
+    "scope": "DX1 local implementation and protocol/config validation",
+    "reviewer": "inline_dx_reviewer",
+    "recordedAt": "2026-11-20T19:59:13.616828+00:00",
+    "evidenceInspected": "actual outputs and all eight current source/test hashes"
+  },
+  "limits": [
+    "Custom statusline must be enabled and Jodex selected in Codex; feature is experimental on installed0.171.0.",
+    "Claude setup preserves an existing statusLine; manual composition needed when one is present.",
+    "Recorded workflow/launch does not prove process liveness; Codex native input is the only direct activity signal.",
+    "No other host native UI adapter in this scope."
+  ],
+  "currentOutcome": "review_required",
+  "openGates": [
+    "native visual activation and acceptance in Claude/Codex",
+    "developer acceptance remains separate"
+  ]
+}

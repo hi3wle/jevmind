@@ -5,24 +5,67 @@ title: Hướng dẫn thực hiện và bàn giao
 
 # Hướng dẫn thực hiện và bàn giao
 
-## Điểm xuất phát cho P1
+Áp dụng cho việc triển khai [v4](../../../coding-harness-v4.md). Ghi chú triển khai v3.2 (P1–P5, N1–N3) được lưu ở [docs/history/v3.2/implementation.md](../../history/v3.2/implementation.md).
 
-| Khả năng | Quan sát hiện có | Việc còn lại |
+## Điểm xuất phát
+
+| Hạng mục | Đã có | Ghi chú cho v4 |
 |---|---|---|
-| Workflow docs | AI DevKit CLI 0.77.0 tạo đủ năm tài liệu feature bằng `docs init-feature coding-harness`. | Khi resume, đọc planning trước. |
-| Task CLI | `task list --name coding-harness --json` trả về `unknown command 'task'`. | Dùng checklist planning trên bản CLI này. |
-| Codex | Shell đã tìm thấy executable trong lần kiểm kê ban đầu. | Kiểm tra phiên bản, entry, model thực, auth/billing, khả năng nhận diện worker và chỉ dẫn effective. |
-| Claude, isolation, AI DevKit session | Chưa xác minh trên repo mẫu. | Ghi rõ supported/tested, unsupported hoặc unknown. Chỉ mở B/C khi phạm vi dữ liệu và quyền cho phép. |
-| Repo thử, checks, review bắt buộc | Chưa chọn. Workspace hiện chứa tài liệu harness. | Maintainer chọn repo/fixture, chốt baseline, acceptance và phạm vi ghi. |
+| Codex | CLI 0.171.0 đã kiểm ở v3.2, auth ChatGPT. Custom roles chạy được khi project đã trust và bật `multi_agent_v2`. | M0 kiểm lại version hiện tại, hooks và MCP. |
+| Claude Code | 2.1.311 đã kiểm ở v3.2, auth Pro. Static profile read-only (Read/Glob/Grep, MCP rỗng, `dontAsk`) giới hạn được file tool trong fixture. | M0 kiểm plugin, hooks và agent definitions. |
+| MCP cá nhân | Stack cá nhân lỗi invalid transport khi khởi động Codex. | Test của Jodex chạy với `mcp_servers` chỉ gồm `jodex`. |
+| Snapshot | `scripts/review_snapshot.py` + 7 test đạt (v3.2 P3). | Nguồn port cho `src/snapshot/`. Giữ nguyên hành vi trước, mở rộng sau. |
+| Jev | Chủ dự án đã có API key. | Key chỉ để trong env hoặc keychain, không ghi vào repo, log hay report. |
+| AI DevKit | CLI 0.77.0, docs/lint dùng được. tmux thiếu nên start/send chưa qualified. | Chỉ dùng cho lifecycle docs của repo này, không phải dependency của Jodex. |
 
-## Thứ tự dùng trong một task
+## Quy ước mã nguồn
 
-1. Đọc yêu cầu, policy của repo đích, baseline và diff đang có. Ghi mode, quyền, quyết định còn mở và tiêu chí chấp nhận. Mặc định A. Giữ công việc ngoài task của developer.
-2. Với C, Claude xuất một plan có revision. Codex kiểm chứng symbol, contract và quyết định trọng yếu, trả `accept`, `revise` hoặc `blocked`. Tiếp tục cùng worker sau khi accept.
-3. Codex triển khai và chạy affected checks của task trên source hiện tại. Ghi command, exit status, môi trường và tham chiếu output. Việc gom test nghiệm thu harness không làm thay đổi nghĩa vụ chạy checks của repo đích.
-4. Với B/C, ưu tiên revision bất biến. Nếu có thay đổi chưa commit, dùng temporary index trên workspace sạch đối với phạm vi task, đối chiếu baseline, tree, file mới/xóa, mode, symlink và nội dung đã materialize. Bảo toàn real index. Từ chối input liên quan thiếu identity, source đổi hoặc layout chưa hỗ trợ. Cấp reviewer quyền trên bản đã kiểm tra.
-5. Phiên reviewer mới nhận yêu cầu gốc, policy, snapshot/diff và test evidence. Ghi `snapshotId`, paths thực đọc, limitations, finding có location/evidence/expected behavior. Kết quả hợp lệ là `no_blocking_findings`, `changes_required` kèm blocker, hoặc `insufficient_evidence`. F1 dùng hết lượt sửa ngay khi bắt đầu. R1 gắn snapshot mới sau affected checks. Blocker còn lại được báo cho developer.
-6. Báo tất cả gate còn mở. Ưu tiên `failed_verification` khi required check đã chạy và fail, sau đó `blocked` khi hết đường tiến, `review_required` khi chờ review, cuối cùng `verified` khi đủ bằng chứng hiện hành. Acceptance của người dùng được ghi riêng.
-7. Ghi TaskEvidence v2 tối thiểu khi được phép gồm mode/source, risk, revision, snapshot, role/provider/model thực, refs và outcome. Để unknown cho dữ liệu thiếu, tránh đếm đôi khi resume. Lỗi ghi telemetry chỉ ảnh hưởng khả năng so sánh. Khi bàn giao release, ghi commit, effective config và revision tốt trước đó. Kích hoạt hoặc rollback lúc idle.
+- Node ≥ 22, TypeScript, ESM. Bin `jodex` trỏ tới `dist/cli.js`.
+- Dependency giới hạn ở:
+  - `@modelcontextprotocol/sdk`;
+  - `@typesafe-ai/sdk`;
+  - một TOML parser;
+  - một JSON Schema validator.
 
-**Khi gián đoạn**, kiểm tra worker thực trước khi retry, đọc lại yêu cầu và source sau compaction. Gặp external edit thì dừng ghi phần liên quan, hòa giải và chạy lại affected checks. Gặp xung đột DB/cache/port thì cô lập hoặc tạm dừng. Thiếu quota hoặc quyền thì giữ nguyên công việc và báo bước cần để tiếp tục.
+  Thêm dependency khác cần lý do ghi tại đây.
+- Bố cục theo v4 §12:
+  - `src/cli` cho CLI;
+  - `src/mcp` cho MCP server;
+  - `src/hooks` cho hook runner;
+  - `src/engine` gồm rules, jev, thresholds, router;
+  - `src/run`, `src/snapshot`, `src/schemas`;
+  - `roles/` và `adapters/` ở gốc repo.
+- Hook runner đọc JSON từ stdin, chuẩn hoá sự kiện theo từng host, và trả output theo đúng contract đã xác minh ở M0.
+- Engine không phụ thuộc host. Adapter chỉ chuyển đổi định dạng.
+- Mọi ghi file vào cấu hình global đều phải backup trước và có `uninstall` tương ứng. Nội dung managed nằm trong vùng `jodex:begin/end`.
+- Test Jev dùng response đã ghi sẵn. Gọi live chỉ diễn ra trong đợt nghiệm thu của milestone, dùng state tổng hợp.
+
+## Thứ tự trong một milestone
+
+1. Đọc spec, planning và testing hiện hành. Chốt allowed files và acceptance rows.
+2. Implementer triển khai, chạy kiểm tra local và bàn giao.
+3. Unit_tester nhận quyền ghi test, bổ sung coverage cho gap cụ thể, chạy suite và ghi kết quả thật vào testing.
+4. Code_reviewer đọc spec, diff và bằng chứng test, không ghi file.
+5. Nếu có blocker: trả về đúng implementer cũ, tối đa một vòng sửa, rồi tester và reviewer kiểm lại.
+6. Cập nhật planning (trạng thái, bước tiếp theo) và testing (bằng chứng). Báo kết quả theo completion policy trong `AGENTS.md`.
+
+## Nhật ký
+
+- **20/11/2026:**
+  - Viết `coding-harness-v4.md` và tự review. Đã sửa: hành vi với prompt không phải task, follow-up trong run đang mở, `jodex_submit_plan`, chuyển writer lock cho tester, phạm vi global/project của `setup`/`init`, no-op ở project chưa init.
+  - Lưu tài liệu v3.2 vào `docs/history/v3.2/`.
+  - Đổi link static profile trong hai skill harness-* sang README đã lưu.
+  - Chưa có code v4.
+- **20/11/2026, M1:**
+  - Triển khai `src/` (9 file phẳng) và `plugin/` dùng chung cho hai host. Thêm `.claude-plugin/marketplace.json` và `.agents/plugins/marketplace.json`.
+  - Dependency runtime chỉ có `smol-toml`, được bundle. Dev dependency: `typescript` 7.0.2, `esbuild` 0.28.2, `@types/node`.
+  - Hook fail-open: nếu hook lỗi thì trả `{}` và ghi `~/.jodex/hook-errors.log`, để Jodex không làm kẹt agent.
+  - Đã thêm vào `.gitignore`: `node_modules/`, `plugin/dist/`, `.jodex/runs/`, `.jodex/sessions/`, `.env`, `.env.*`.
+
+## DX1 · Chuẩn bị inline status (21/11/2026)
+
+Phạm vi đã đọc: src/cli.ts, setup.ts, run.ts, hooks.ts, decisions.ts, team.ts, checks.ts, plugin manifests/hooks, test callers và README. Run store đã có host/model/awaiting/reviews/mode; không cần tạo session manager. Ponytail cho thấy badge ngắn, màu phụ, native status integration. Codex adapter cần read-only MCP statusline transport đúng native interface; Claude command footer. Triển khai đang bàn giao, chưa có claim hoàn tất.
+
+DX1 implementation ready: src/statusline.ts dùng session-bound read-only render, native Claude JSON và Codex stdio MCP; bounded 128KB decision tail/recent runs; workflow tách native activity. src/cli.ts thêm statusline/setup/uninstall entry; src/setup.ts thêm explicit footer opt-in, backup mode600 và rollback exact-owned, giữ footer cũ và CLAUDE_CONFIG_DIR. Codex manifest trỏ scoped MCP config; README có activation/composition/rollback. Không sửa hooks/run schema hoặc thêm dependency. Source và actual RED/GREEN/build evidence ở `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-inline-implementation-8krt8by6/handoff.json`; baseline source copies ở sibling `jodex-inline-before-sw2gglk_`. Parent đã inspect source sau handoff, tester tiếp nhận.
+
+DX1 final handoff: implementer → independent tester → read-only reviewer hoàn tất tuần tự; REVIEW_PASS scoped, không correction cycle. Renderer/setup/CLI/manifest/docs hashes khớp test và review. Source ở working tree, chưa commit. Explicit activation/rollback xem README Inline status. Native visual acceptance còn mở; không có global config changes hoặc provider calls.

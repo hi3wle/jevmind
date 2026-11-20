@@ -1,0 +1,52 @@
+{
+  "scope": "N1 synthetic CLI smoke; authorized by user",
+  "client": "codex-cli 0.171.0",
+  "userConfig": "ignored for test; native ChatGPT auth retained",
+  "sessions": [
+    {
+      "invocation": "first.jsonl",
+      "threadId": "01a1f77a-8006-78a0-b158-f960f09b8630",
+      "completed": true,
+      "checks": [
+        {
+          "exitCode": 1,
+          "output": "Python 3.15.2\n31106e8892148d20ec329194a622714d350250ef2c8da831cda33383371a58ce  formatting.py\n3e01a6b66b765557d447db2782b687d62c48a2ace4e9f320aeea3fcba3639f83  test_formatting.py\ntest_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) ... \n  test_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) (value=5) ... FAIL\n  test_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) (value=10) ... FAIL\n  test_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) (value=11) ... FAIL\ntest_greeting_preserves_name (test_formatting.FormattingTests.test_greeting_preserves_name) ... ok\n\n======================================================================\nFAIL: test_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) (value=5)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/harness-live-2gfdixll/repo/test_formatting.py\", line 13, in test_clamp_bounds_and_interior\n    self.assertEqual(clamp(value, 0, 10), expected)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 != 5\n\n======================================================================\nFAIL: test_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) (value=10)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/harness-live-2gfdixll/repo/test_formatting.py\", line 13, in test_clamp_bounds_and_interior\n    self.assertEqual(clamp(value, 0, 10), expected)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 != 10\n\n======================================================================\nFAIL: test_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) (value=11)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/harness-live-2gfdixll/repo/test_formatting.py\", line 13, in test_clamp_bounds_and_interior\n    self.assertEqual(clamp(value, 0, 10), expected)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 != 10\n\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nFAILED (failures=3)\n"
+        },
+        {
+          "exitCode": 0,
+          "output": "test_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) ... ok\ntest_greeting_accepts_custom_punctuation (test_formatting.FormattingTests.test_greeting_accepts_custom_punctuation) ... ok\ntest_greeting_preserves_name (test_formatting.FormattingTests.test_greeting_preserves_name) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK\n0e4634a3d963ae760feba21b4b5b6f08cfe410ec102ec2bb118408dd0935fc89  formatting.py\nf40288e6b964761b328513b6449ee23d7f578dea366224b17408e25df4a20d66  test_formatting.py\n?? .agents/\n?? AGENTS.md\n?? README.md\n?? formatting.py\n?? test_formatting.py\n"
+        }
+      ],
+      "outcome": "review_required"
+    },
+    {
+      "invocation": "resume.jsonl",
+      "threadId": "01a1f77a-8006-78a0-b158-f960f09b8630",
+      "completed": true,
+      "checks": [
+        {
+          "exitCode": 0,
+          "output": "Python 3.15.2\n5da2b99768298bb4ebc268ebf13da6b6dc7264e88352361d58e214d5a81b9257  formatting.py\nf40288e6b964761b328513b6449ee23d7f578dea366224b17408e25df4a20d66  test_formatting.py\n4f23948f664040bf9cabf1cb975b703d68e1fc11aa2e5680cf6a60690e7d1375  developer-note.txt\ntest_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) ... ok\ntest_greeting_accepts_custom_punctuation (test_formatting.FormattingTests.test_greeting_accepts_custom_punctuation) ... ok\ntest_greeting_preserves_name (test_formatting.FormattingTests.test_greeting_preserves_name) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK\n5da2b99768298bb4ebc268ebf13da6b6dc7264e88352361d58e214d5a81b9257  formatting.py\nf40288e6b964761b328513b6449ee23d7f578dea366224b17408e25df4a20d66  test_formatting.py\n4f23948f664040bf9cabf1cb975b703d68e1fc11aa2e5680cf6a60690e7d1375  developer-note.txt\n"
+        }
+      ],
+      "outcome": "review_required"
+    },
+    {
+      "invocation": "recovered.jsonl",
+      "threadId": "01a1f77a-8006-78a0-b158-f960f09b8630",
+      "completed": true,
+      "checks": [
+        {
+          "exitCode": 0,
+          "output": "Python 3.15.2\n5da2b99768298bb4ebc268ebf13da6b6dc7264e88352361d58e214d5a81b9257  formatting.py\nf40288e6b964761b328513b6449ee23d7f578dea366224b17408e25df4a20d66  test_formatting.py\n4f23948f664040bf9cabf1cb975b703d68e1fc11aa2e5680cf6a60690e7d1375  developer-note.txt\n03494afd4248c42f5fa1237bf2eeebe751ab8d9c977d55405fcb17469dbd91f8  recovery-marker.txt\ntest_clamp_bounds_and_interior (test_formatting.FormattingTests.test_clamp_bounds_and_interior) ... ok\ntest_greeting_accepts_custom_punctuation (test_formatting.FormattingTests.test_greeting_accepts_custom_punctuation) ... ok\ntest_greeting_preserves_name (test_formatting.FormattingTests.test_greeting_preserves_name) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK\n5da2b99768298bb4ebc268ebf13da6b6dc7264e88352361d58e214d5a81b9257  formatting.py\nf40288e6b964761b328513b6449ee23d7f578dea366224b17408e25df4a20d66  test_formatting.py\n4f23948f664040bf9cabf1cb975b703d68e1fc11aa2e5680cf6a60690e7d1375  developer-note.txt\n03494afd4248c42f5fa1237bf2eeebe751ab8d9c977d55405fcb17469dbd91f8  recovery-marker.txt\n"
+        }
+      ],
+      "outcome": "review_required"
+    }
+  ],
+  "interruption": {
+    "markerObserved": true,
+    "processExit": 1,
+    "pid": 46910
+  }
+}

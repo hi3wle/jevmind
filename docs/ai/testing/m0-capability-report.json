@@ -1,0 +1,245 @@
+{
+  "milestone": "M0",
+  "date": "2026-11-20",
+  "candidate": "working tree after commit 2dddaf8 (spec coding-harness-v4.md, uncommitted)",
+  "environment": {
+    "os": "Darwin arm64",
+    "node": "v26.7.0",
+    "npm": "11.19.0",
+    "claudeCode": "2.1.311",
+    "codex": "codex-cli 0.171.0",
+    "typesafeSdk": "@typesafe-ai/sdk 0.7.0 (engines node >=22)",
+    "mcpSdk": "@modelcontextprotocol/sdk 1.32.2 (npm view, not installed)"
+  },
+  "method": "Probes ran in a scratchpad directory outside the repository. Each probe used a throwaway plugin or -c overrides and a stub hook script that logged its stdin and returned fixed outputs. A stub stdio MCP server returned a fixed token. No global Claude Code or Codex configuration was written. Codex runs used --dangerously-bypass-hook-trust for those invocations only, with the probe's own hook script. cx-2 and cx-3 ran without --ephemeral and left session rollouts under ~/.codex/sessions (required for subagent spawn).",
+  "runs": [
+    {
+      "id": "cc-1",
+      "host": "claude-code",
+      "command": "claude -p <probe> --plugin-dir <probe plugin> --setting-sources '' --model haiku --permission-mode acceptEdits --output-format stream-json --no-session-persistence",
+      "exit": 0,
+      "seconds": 20,
+      "costUsd": 0.0117,
+      "resolvedModel": "claude-haiku-5-5"
+    },
+    {
+      "id": "cx-1",
+      "host": "codex",
+      "command": "codex exec --json --ephemeral --sandbox workspace-write --dangerously-bypass-hook-trust -c hooks.* -c mcp_servers={jodexprobe} -c agents.probe_reader",
+      "exit": 0,
+      "seconds": 35,
+      "resolvedModel": "gpt-6.1-sol"
+    },
+    {
+      "id": "cx-2",
+      "host": "codex",
+      "command": "as cx-1 without --ephemeral; MCP server default_tools_approval_mode=\"approve\"",
+      "exit": 0,
+      "seconds": 38
+    },
+    {
+      "id": "cx-3",
+      "host": "codex",
+      "command": "as cx-2 with -c sandbox_mode=\"workspace-write\" instead of --sandbox, no hooks",
+      "exit": 0,
+      "seconds": 27
+    },
+    {
+      "id": "jev-1",
+      "host": "typesafe",
+      "command": "node smoke.mjs (SDK 0.7.0, maxRetries 0, per-call timeout 3000 ms; synthetic state only; key read from .env.local into the process environment, never printed or written)",
+      "exit": 0,
+      "calls": 20,
+      "resolvedModel": "jev-1.14.0"
+    }
+  ],
+  "matrix": [
+    {
+      "item": "claude-code.plugin.layout",
+      "result": "supported",
+      "evidence": "cc-1 init listed plugin jodexprobe from .claude-plugin/plugin.json with hooks/hooks.json, agents/, .mcp.json loaded via --plugin-dir"
+    },
+    {
+      "item": "claude-code.plugin.naming",
+      "result": "supported",
+      "evidence": "plugin agent exposed as 'jodexprobe:probe-reader'; plugin MCP tool exposed as 'mcp__plugin_jodexprobe_jodexprobe__probe_ping' and loaded through ToolSearch"
+    },
+    {
+      "item": "claude-code.hook.UserPromptSubmit.additionalContext",
+      "result": "supported",
+      "evidence": "model reported injected token k7q2"
+    },
+    {
+      "item": "claude-code.hook.UserPromptSubmit.taskNotifications",
+      "result": "observed",
+      "evidence": "a background subagent completion re-entered as a UserPromptSubmit event whose prompt starts with '<task-notification>'; D1 must not treat it as a new task"
+    },
+    {
+      "item": "claude-code.hook.PreToolUse.deny",
+      "result": "supported",
+      "evidence": "Write to blocked.txt denied with permissionDecision=deny; file absent; model saw the reason"
+    },
+    {
+      "item": "claude-code.hook.PostToolUse",
+      "result": "supported",
+      "evidence": "fired for Write, Agent, ToolSearch, MCP and subagent Read with tool_response"
+    },
+    {
+      "item": "claude-code.hook.Stop.block",
+      "result": "supported",
+      "evidence": "decision=block once; second Stop had stop_hook_active=true; final answer contained STOP_GATE_SEEN"
+    },
+    {
+      "item": "claude-code.hook.SubagentStop",
+      "result": "supported",
+      "evidence": "fired with agent_id, agent_type=jodexprobe:probe-reader, last_assistant_message"
+    },
+    {
+      "item": "claude-code.hook.subagentIdentity",
+      "result": "supported",
+      "evidence": "PreToolUse/PostToolUse inside the subagent carried agent_id and agent_type; main-session events had neither"
+    },
+    {
+      "item": "claude-code.agent.toolAllowlist",
+      "result": "supported",
+      "evidence": "agent with tools: Read, Glob reported only those tools and had no write tool"
+    },
+    {
+      "item": "claude-code.subagent.async",
+      "result": "observed",
+      "evidence": "Agent tool launched the subagent in the background; the parent finished its turn and the result arrived as a later task notification"
+    },
+    {
+      "item": "claude-code.isolation.settingSources",
+      "result": "limited",
+      "evidence": "--setting-sources '' still loaded claude.ai connectors and an inline third-party plugin; personal integrations can appear in sessions"
+    },
+    {
+      "item": "codex.hooks.events",
+      "result": "supported",
+      "evidence": "UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStop fired via -c hooks.<Event> overrides; feature 'hooks' is stable and enabled"
+    },
+    {
+      "item": "codex.hook.UserPromptSubmit.additionalContext",
+      "result": "supported",
+      "evidence": "model reported token k7q2"
+    },
+    {
+      "item": "codex.hook.PreToolUse.deny",
+      "result": "supported",
+      "evidence": "apply_patch adding blocked.txt was blocked; file absent. Tool name is apply_patch and the paths are inside the patch text"
+    },
+    {
+      "item": "codex.hook.Stop.block",
+      "result": "supported",
+      "evidence": "decision=block once; final output contained STOP_GATE_SEEN"
+    },
+    {
+      "item": "codex.hook.subagentIdentity",
+      "result": "supported",
+      "evidence": "subagent Bash PreToolUse carried agent_id and agent_type=probe_reader; SubagentStop carried both"
+    },
+    {
+      "item": "codex.hook.trust",
+      "result": "constraint",
+      "evidence": "hooks require persisted hook trust; probes used --dangerously-bypass-hook-trust for one invocation. jodex setup must establish trust through the supported flow [follow-up]"
+    },
+    {
+      "item": "codex.mcp.registration",
+      "result": "supported",
+      "evidence": "-c mcp_servers.jodexprobe connected; tool name mcp__jodexprobe__probe_ping"
+    },
+    {
+      "item": "codex.mcp.approval",
+      "result": "constraint",
+      "evidence": "without approval config the call failed: 'MCP tool call requires approval, but approval policy is never'; default_tools_approval_mode=\"approve\" on the server fixed it (cx-2)"
+    },
+    {
+      "item": "codex.subagent.spawn",
+      "result": "supported",
+      "evidence": "multi_agent_v2 spawn_agent with a custom role from agents.<name>.config_file succeeded in cx-2"
+    },
+    {
+      "item": "codex.subagent.ephemeral",
+      "result": "unsupported",
+      "evidence": "with --ephemeral, spawn failed: 'no rollout found for thread id'"
+    },
+    {
+      "item": "codex.role.sandbox_mode.readOnly",
+      "result": "not_enforced",
+      "evidence": "role file sandbox_mode=\"read-only\" did not stop the subagent writing sub.txt via shell, with the parent sandbox set by flag (cx-2) or by config (cx-3)"
+    },
+    {
+      "item": "codex.subagent.configInheritance",
+      "result": "observed",
+      "evidence": "the subagent listed Context7 and Figma MCP tools although the parent set mcp_servers to the probe server only; subagents do not inherit all parent -c overrides"
+    },
+    {
+      "item": "codex.plugins",
+      "result": "unknown",
+      "evidence": "codex plugin add/marketplace exists (plugins stable); plugin_hooks feature is 'removed'; plugin packaging of hooks not tested"
+    },
+    {
+      "item": "jev.sdk.defaults",
+      "result": "observed",
+      "evidence": "SDK 0.7.0 types: default timeout 10000 ms per attempt and 2 retries; per-call RequestOptions {timeout, retry, signal}; noul answer field is 'noul' (probability); score returns expected 'score' plus probabilities by index"
+    },
+    {
+      "item": "cross-provider.codexExecReadOnly",
+      "result": "unknown",
+      "evidence": "not probed in M0; deferred to M4"
+    },
+    {
+      "item": "jev.auth",
+      "result": "supported",
+      "evidence": "valid key answered; invalid key raised AuthenticationError status 401"
+    },
+    {
+      "item": "jev.models",
+      "result": "observed",
+      "evidence": "models.list returned jev-latest and jev-preview; every answer reported model jev-1.14.0"
+    },
+    {
+      "item": "jev.latency",
+      "result": "supported",
+      "evidence": "D1 (4 questions, ~560 input tokens) over 10 warm calls: p50 268 ms, p95 514 ms, min 220, max 514. First call of the process 1054 ms. D2 (1 score, ~350 tokens) 265-297 ms. D5 618 ms. Measured from the developer laptop."
+    },
+    {
+      "item": "jev.timeout",
+      "result": "supported",
+      "evidence": "timeout 1 ms raised APITimeoutError after 5 ms with maxRetries 0"
+    },
+    {
+      "item": "jev.answers.D1",
+      "result": "plausible",
+      "evidence": "typo: change 0.94, solo 1.00, risk low 1.00. question-only: change 0.04 (no run). fee rounding on a protected path: clarify 0.65, risk critical 1.00, missing rule 0.68. loyalty discount: clarify 0.78, risk critical 0.93, missing rule 0.83"
+    },
+    {
+      "item": "jev.answers.D2",
+      "result": "plausible",
+      "evidence": "ls safe 0.91; npm test safe 0.74 / caution 0.25; git push --force dangerous 0.99; rm -rf ~/projects dangerous 1.00"
+    },
+    {
+      "item": "jev.answers.D5",
+      "result": "plausible",
+      "evidence": "success claim with a failed required test: unsupported 0.97"
+    },
+    {
+      "item": "jev.usage",
+      "result": "observed",
+      "evidence": "D1 ~560 input / 96 output tokens; D2 ~350 / 17; D5 362 / 20"
+    }
+  ],
+  "specImpact": [
+    "D1 must ignore UserPromptSubmit events whose prompt is a <task-notification>.",
+    "Claude Code subagents run in the background; team-mode steps must wait for SubagentStop or the notification, not assume synchronous results.",
+    "Codex reviewer/planner read-only cannot rely on the role sandbox_mode; enforce with PreToolUse by agent_type (deny apply_patch; Bash only via a read-only allowlist) and record the limitation.",
+    "Codex MCP registration needs default_tools_approval_mode=\"approve\" for the jodex server.",
+    "Codex hooks need hook trust; jodex setup must use the supported trust flow, never the bypass flag.",
+    "Jev calls must set per-call timeout and maxRetries=0 on hook paths, overriding the SDK defaults (10 s, 2 retries).",
+    "The Codex PreToolUse gate must parse paths from apply_patch text.",
+    "Cold first call (~1.05 s) can exceed the D2 800 ms budget; the hook process is short-lived, so expect fallback on the first gated call of a session unless the timeout allows it. Measured p95 for warm calls is within budget.",
+    "Jev model versions change under 'jev-latest'; log the reported version, do not treat a new version as a fallback condition.",
+    "Score answers are keyed by rubric index ('0','1','2'); thresholds read probabilities by index."
+  ]
+}

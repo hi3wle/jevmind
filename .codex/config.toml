@@ -1,0 +1,21 @@
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium"
+
+[features]
+multi_agent_v2 = true
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+
+[agents.implementer]
+description = "Implement approved plan and fix confirmed defects"
+config_file = "agents/implementer.toml"
+
+[agents.unit_tester]
+description = "Write and run independent unit tests"
+config_file = "agents/unit-tester.toml"
+
+[agents.code_reviewer]
+description = "Independently review diff and test results"
+config_file = "agents/code-reviewer.toml"

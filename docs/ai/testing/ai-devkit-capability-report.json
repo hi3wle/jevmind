@@ -1,0 +1,65 @@
+{
+  "kind": "ai-devkit-capability-audit",
+  "recordedAt": "2026-11-20T13:29:32.707264+00:00",
+  "version": "0.77.0",
+  "observed": [
+    {
+      "capability": "project configuration",
+      "before": "missing",
+      "current": "minimal .ai-devkit.json present and valid; project config status pass confirmed by tester and parent status --json",
+      "evidence": "ai-devkit status --json, installed types.d.ts and ConfigManager schema"
+    },
+    {
+      "capability": "global Codex skills",
+      "status": "available",
+      "count": 21,
+      "evidence": "ai-devkit skill list --global --env codex",
+      "note": "lifecycle/requirements/design/planning/implementation/testing/review/worktree/memory/verify skills present; reuse global installation, no duplicate vendor copies"
+    },
+    {
+      "capability": "feature docs and checks",
+      "status": "tested",
+      "evidence": "docs init-feature and lint --feature coding-harness; five phase files"
+    },
+    {
+      "capability": "session discovery",
+      "status": "tested",
+      "evidence": "agent sessions --cwd /Volumes/WD-EXTERNAL/Personal/jodex-harness --type codex --limit 3 --json returned three matching sessions, including current session"
+    },
+    {
+      "capability": "interactive start/send runtime",
+      "status": "unavailable in current configuration",
+      "evidence": "ConfigManager.getAgentRuntimeProvider() == tmux; status.tmux.available == false",
+      "note": "start/send help inspected; no successful live start/send claimed; native Codex session and manual handoff fallback per proposal 7"
+    },
+    {
+      "capability": "memory CLI",
+      "status": "tested read probe, no relevant match",
+      "evidence": "memory search --query jodex-harness --limit 1 exited0, results=[], semantic=false",
+      "note": "no memory content exported, no progress transcript stored"
+    },
+    {
+      "capability": "memory MCP",
+      "status": "unwired",
+      "evidence": "status.memoryMcp"
+    },
+    {
+      "capability": "task CLI",
+      "status": "unsupported on installed version",
+      "evidence": "task list --name coding-harness --json returned unknown command",
+      "note": "planning checklist is progress source, no replacement task manager"
+    },
+    {
+      "capability": "managed integration readiness",
+      "status": "not fully ready",
+      "evidence": "status --json: overall fail; Claude hook unavailable/unregistered; Codex hook warns of stale session mappings; Codex built-in skills 21/28 including no dev-smoke",
+      "note": "No global hook changes or missing-skill installation. Tested Claude profile disables hooks; runtime evidence is native/manual, not managed AI DevKit start/send."
+    }
+  ],
+  "fallback": "AI DevKit skills/docs/checklist/session discovery and memory CLI where available; native Codex session execution/recovery and explicit manual Claude handoff. No tmux install, runtime-provider change or new daemon.",
+  "readiness": {
+    "projectConfiguration": "pass",
+    "overall": "fail",
+    "interpretation": "status command exit 0 means the audit ran, not full readiness; missing tmux and managed integration gaps remain"
+  }
+}

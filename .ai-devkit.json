@@ -1,0 +1,17 @@
+{
+  "version": "0.77.0",
+  "paths": {
+    "docs": "docs/ai"
+  },
+  "environments": [
+    "codex"
+  ],
+  "phases": [
+    "requirements",
+    "design",
+    "planning",
+    "implementation",
+    "testing"
+  ],
+  "createdAt": "2026-11-20T13:25:34.358Z"
+}
