@@ -188,6 +188,10 @@ const MODES: Mode[] = ['solo', 'review', 'collaborative'];
 export const maxMode = (a: Mode, b: Mode) => (MODES.indexOf(a) >= MODES.indexOf(b) ? a : b);
 
 // Raise the mode, never lower it. A critical floor needs at least an independent review (spec §3.1).
+// A later prompt's Jev recommendation does not raise a run that already has changes (it belongs to
+// an earlier task); the developer's explicit `review:`/`collab:` always does.
+export const canRaise = (run: Run, source?: string) => source === 'override' || !run.touched.length;
+
 export function raiseMode(run: Run, mode: Mode, source: string) {
   if (MODES.indexOf(mode) > MODES.indexOf(run.mode)) {
     run.mode = mode;

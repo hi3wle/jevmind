@@ -52,6 +52,10 @@ function claimLaunch(file: string): boolean {
 const spawnDetached = (root: string, script: string, args: string[]) =>
   spawn(process.execPath, [script, ...args], { cwd: root, detached: true, stdio: 'ignore', env: { ...process.env, JODEX_DISABLE: '1' } }).unref();
 
+// Inside the Codex sandbox (seen live in 0.171.0: CODEX_SANDBOX=seatbelt, no network) the other CLI
+// cannot start; only the hook, which runs outside it, can launch a reviewer.
+export const inCodexSandbox = () => !!(process.env.CODEX_SANDBOX || process.env.CODEX_SANDBOX_NETWORK_DISABLED);
+
 // Starts the reviewer as a detached process. Called from a hook (outside any sandbox: Codex's
 // workspace-write sandbox has no network) or from `jodex review wait` as a fallback.
 export function launchReviewer(root: string, run: Run, script: string): boolean {
@@ -166,7 +170,7 @@ export async function waitPlanReview(root: string, run: Run, script: string, tim
   const file = planReviewFile(root, run, (run.plans ?? []).length - 1);
   for (const t0 = Date.now(); ; ) {
     if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8');
-    if (Date.now() - t0 > 10_000) launchPlanReview(root, run, script);
+    if (Date.now() - t0 > 10_000 && !inCodexSandbox()) launchPlanReview(root, run, script);
     if (Date.now() - t0 > timeoutMs) return null;
     await new Promise((res) => setTimeout(res, 3000));
   }

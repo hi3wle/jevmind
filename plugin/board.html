@@ -27,12 +27,12 @@ aside{border-right:1px solid var(--line);padding:18px 8px;display:flex;flex-dire
 .brand{display:flex;gap:10px;align-items:center;padding:0 8px 22px;font:600 15px var(--mono)}
 .brand i{width:22px;height:22px;border-radius:6px;background:conic-gradient(var(--ok),var(--info),var(--accent),var(--warn),var(--ok))}
 .label{font-size:11px;letter-spacing:.12em;color:var(--faint);padding:0 8px 8px;text-transform:uppercase}
-.proj{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;color:var(--muted);cursor:pointer;font-size:13px}
+.proj{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;color:var(--muted);cursor:pointer;font-size:13px;border:0;width:100%;text-align:left;background:none;font-family:inherit}.proj:focus-visible{outline:2px solid var(--info);outline-offset:-2px}
 .proj:hover{background:var(--track)}.proj.on{background:var(--track);color:var(--text)}
 .proj .dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ok)}.proj .n{margin-left:auto;font:12px var(--mono);color:var(--faint)}
 .foot{margin-top:auto;border-top:1px solid var(--line);padding:12px 8px 0;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--faint)}
 .foot button{background:none;border:1px solid var(--line2);color:var(--muted);border-radius:6px;padding:4px 8px;cursor:pointer}
-main{padding:28px 32px 40px;max-width:1240px;width:100%;margin:0 auto}
+main{padding:28px 32px 40px;max-width:1240px;width:100%;min-width:0;margin:0 auto}
 .crumb{font-size:12px;color:var(--faint)}.crumb b{color:var(--muted);font-weight:500}
 .head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:4px 0 18px}
 h1{margin:0;font-size:24px;letter-spacing:-.01em}.sub{color:var(--muted);font-size:13px;margin-top:2px}
@@ -92,17 +92,18 @@ td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
 .provs{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px}
 .prov{border:1px solid var(--line2);border-radius:10px;padding:8px 12px;background:var(--panel);font-size:12px;color:var(--muted);min-width:0}
 .prov b{color:var(--text);font-weight:600;margin-right:6px}.prov .mono{font-family:var(--mono);color:var(--text)}
-.lanes{overflow-x:auto;margin-top:10px}
-.lane,.phead{display:grid;grid-template-columns:170px repeat(7,minmax(100px,1fr));column-gap:14px;min-width:960px;align-items:stretch}
-.phead{font-size:10.5px;letter-spacing:.1em;color:var(--faint);text-transform:uppercase;padding:0 0 6px}
-.lane{padding:10px 0;border-top:1px solid var(--line)}
-.lrun{min-width:0;cursor:pointer}.lrun .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lanes{margin-top:14px}
+.lane{padding:16px 0;border-top:1px solid var(--line)}
+.lrun{display:block;width:100%;text-align:left;border:0;padding:0;background:none;color:var(--text);font:inherit;cursor:pointer}.lrun:focus-visible{outline:2px solid var(--info);outline-offset:4px}.lrun .n{font-weight:600;overflow-wrap:anywhere}
 .lrun .m{color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cell{position:relative;border:1px solid var(--line2);border-radius:9px;padding:7px 9px;background:var(--panel);min-width:0;font-size:11.5px}
-.cell:before{content:"";position:absolute;left:-15px;top:50%;width:14px;border-top:2px solid var(--c,var(--line2))}
-.lrun+.cell:before{display:none}
+.workflow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;list-style:none;padding:0;margin:14px 0 10px}
+.cell{position:relative;border:1px solid var(--line2);border-radius:10px;padding:12px;background:var(--panel);min-width:0;font-size:12px}
+.cell:before{content:"";position:absolute;left:-25px;top:28px;width:24px;border-top:2px solid var(--c,var(--line2))}
+.cell:first-child:before{display:none}
+.cell .role{font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:7px}.cell .symbol{color:var(--c);font:16px var(--mono)}
+.activity{margin-top:8px;color:var(--info);font-weight:500;font-size:13px}.gates{display:flex;gap:8px;flex-wrap:wrap}.gate{padding:4px 8px;border-radius:5px;background:var(--track);font-size:11px;color:var(--muted)}
 .cell .md{font:600 11px var(--mono);overflow-wrap:anywhere;margin-top:2px}
-.cell .dt{color:var(--muted);margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.cell .dt{color:var(--muted);margin-top:5px;overflow-wrap:anywhere}
 .st{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--c);text-transform:uppercase;letter-spacing:.04em}
 .st:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--c)}
 .cell.done{--c:var(--ok)}.cell.failed{--c:var(--bad);border-color:var(--bad)}.cell.warn,.cell.overdue{--c:var(--warn)}
@@ -111,11 +112,13 @@ td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
 .cell.waiting{--c:var(--info)}.cell.idle,.cell.pending{--c:var(--faint)}.cell.pending:before{border-top-style:dashed}
 .cell.skipped{--c:var(--faint);opacity:.45}.cell.skipped:before{border-top-style:dotted}
 @keyframes pulse{50%{opacity:.35}}@keyframes flow{to{transform:translateX(4px)}}
+@media(prefers-reduced-motion:reduce){.cell.running:before,.cell.running .st:before{animation:none}}
+@media(max-width:700px){.app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr}aside{max-height:180px;overflow:auto;border-right:0;border-bottom:1px solid var(--line);padding:12px 8px}aside .brand{padding-bottom:8px;flex-shrink:0}main{padding:18px 14px}.grid2{grid-template-columns:minmax(0,1fr)}.workflow{grid-template-columns:1fr;gap:16px}.cell:before{left:24px;top:-17px;width:0;height:16px;border-top:0;border-left:2px solid var(--c,var(--line2))}.cell:first-child:before{display:none}.live{padding:16px}.search{width:160px}}
 </style>
 </head>
 <body>
 <div class="app">
-  <aside>
+  <aside aria-label="Project and session navigation">
     <div class="brand"><i></i>jodex</div>
     <div class="label">Projects</div>
     <div id="projects"></div>
@@ -136,7 +139,7 @@ td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
         <div class="nums" id="liveNums"></div>
       </div>
       <div class="provs" id="provs"></div>
-      <div class="lanes"><div class="phead"><span>Run</span><span>Decision</span><span>Planner</span><span>Implementor</span><span>Tester</span><span>Checks</span><span>Reviewer</span><span>Outcome</span></div><div id="lanes"></div></div>
+      <div class="lanes" id="lanes" aria-label="Live workflows"></div>
       <div class="legend"><span><i style="background:var(--ok)"></i>Done</span><span><i style="background:var(--info)"></i>Running / waiting</span><span><i style="background:var(--warn)"></i>Needs attention or overdue (&gt;30 min)</span><span><i style="background:var(--bad)"></i>Failed</span><span><i style="background:var(--faint)"></i>Pending · faded: not used in this mode</span><span>Each row follows one run through the harness, left to right. Recorded state: "running" does not prove a process is alive.</span></div>
     </div>
     <div class="kpis" id="kpis"></div>
@@ -225,9 +228,11 @@ function spark(values, color) {
 }
 
 function renderSidebar() {
+  const focusedScope = document.activeElement?.dataset?.scope;
   const box = $('projects'); box.replaceChildren();
   const add = (name, count, value) => {
-    const d = el('div', 'proj' + (state.project === value ? ' on' : ''));
+    const d = el('button', 'proj' + (state.project === value ? ' on' : ''));
+    d.type = 'button'; d.dataset.scope = `project:${value || ''}`; d.setAttribute('aria-pressed', String(state.project === value));
     if (value) d.append(el('span', 'dot'));
     d.append(el('span', null, name), el('span', 'n', String(count)));
     d.onclick = () => { state.project = value; state.session = null; render(); };
@@ -237,13 +242,15 @@ function renderSidebar() {
   for (const p of DATA.projects) add(p.name, DATA.runs.filter((r) => r.project === p.name).length, p.name);
   const sbox = $('sessions'); sbox.replaceChildren();
   for (const s of sessions().slice(0, 15)) {
-    const d = el('div', 'proj' + (state.session === s.id ? ' on' : ''));
+    const d = el('button', 'proj' + (state.session === s.id ? ' on' : ''));
+    d.type = 'button'; d.dataset.scope = `session:${s.id}`; d.setAttribute('aria-pressed', String(state.session === s.id));
     d.title = `${s.project} · ${s.host || 'cli'} · ${s.label}`;
     d.append(el('span', 'dot' + (s.active ? '' : ' idle')), el('span', 'lab', s.label), el('span', 'n', String(s.runs.length)));
     d.onclick = () => { state.session = state.session === s.id ? null : s.id; render(); };
     sbox.append(d);
   }
   if (!sbox.children.length) sbox.append(el('div', 'meta', 'No agent sessions yet'));
+  if (focusedScope) [...document.querySelectorAll('aside .proj')].find((button) => button.dataset.scope === focusedScope)?.focus({ preventScroll: true });
 }
 
 const ACTIVE_MS = 120e3;
@@ -282,7 +289,7 @@ function renderLive() {
   const waiting = runs.filter((r) => r.awaiting && !r.awaiting.overdue).length, overdue = runs.filter((r) => r.awaiting?.overdue).length;
   $('liveOn').classList.toggle('yes', LIVE);
   $('liveSub').textContent = LIVE ? `updated ${new Date(DATA.generatedAt).toLocaleTimeString()}` : 'snapshot: run `jodex board --live` for real time';
-  $('liveNums').innerHTML = `<b>${runs.filter((r) => r.pipeline.some((p) => p.status === 'running')).length}</b> in flight · <b>${waiting}</b> waiting on a role${overdue ? ` · <b>${overdue}</b> overdue` : ''} · <b>${((jev.length + reviews15.length) / 15).toFixed(1)}</b> provider calls/min · <b>${failed15}</b> failed, 15 min`;
+  $('liveNums').innerHTML = `<b>${runs.filter((r) => r.open).length}</b> open runs · <b>${waiting}</b> waiting for a result${overdue ? ` · <b>${overdue}</b> overdue` : ''} · <b>${((jev.length + reviews15.length) / 15).toFixed(1)}</b> provider calls/min · <b>${failed15}</b> failed, 15 min`;
   // Providers: which models run where right now (or in the window).
   const provs = new Map();
   for (const r of runs) for (const p of r.pipeline) {
@@ -297,28 +304,50 @@ function renderLive() {
   for (const [k, x] of [...provs].sort((a, b) => b[1].busy.size - a[1].busy.size)) {
     const c = el('div', 'prov'); c.append(el('b', null, PROVIDER_NAMES[k] || k), el('span', 'mono', [...x.models].join(', ') || 'model not reported'));
     if (k === 'typesafe') { const lat = jev.filter((d) => d.source === 'jev').map((d) => d.latencyMs).sort((a, b) => a - b); c.append(` · ${jev.length} Jev calls · p50 ${lat.length ? lat[Math.floor(lat.length / 2)] : '—'} ms · ${jev.length - lat.length} fallback`); }
-    else c.append(` · ${x.busy.size ? `busy: ${[...x.busy].join(', ')}` : 'idle'}`);
+    else c.append(` · ${x.busy.size ? `recorded: ${[...x.busy].join(', ')}` : 'no recorded activity'}`);
     pbox.append(c);
   }
+  const focusedRun = document.activeElement?.dataset?.run;
   const box = $('lanes'); box.replaceChildren();
   if (!runs.length) { box.append(el('div', 'empty', state.range === 'now' ? 'Nothing running now. Switch to Last 15 min, or give an agent a task in an initialized project.' : 'No runs in the last 15 minutes.')); return; }
   for (const r of runs) {
-    const lane = el('div', 'lane'), info = el('div', 'lrun');
-    info.append(el('div', 'n', r.request || '(started by jodex check)'), el('div', 'm', `${hostName(r.host)} · ${r.project}`), el('div', 'm', `${r.runId} · active ${ago(r.updatedAt)} ago`));
+    const lane = el('section', 'lane'), info = el('button', 'lrun');
+    info.type = 'button'; info.dataset.run = `${r.project}/${r.runId}`;
+    info.setAttribute('aria-pressed', String(!!r.sessionId && state.session === r.sessionId));
+    info.append(el('div', 'n', r.request || '(started by jodex check)'), el('div', 'm', `${hostName(r.host)} · ${r.project} · ${r.runId} · updated ${ago(r.updatedAt)} ago`));
     info.title = `${r.request}\n\nFiles:\n${r.paths.join('\n')}`;
     if (r.sessionId) info.onclick = () => { state.session = state.session === r.sessionId ? null : r.sessionId; render(); };
     lane.append(info);
-    for (const p of r.pipeline) {
-      const c = el('div', `cell ${p.status}`);
+    lane.append(el('div', 'activity', r.activity || (r.open && r.awaiting ? `Waiting for ${r.awaiting.role} result` : r.open ? 'Implementation / checks · last recorded activity' : `Closed · ${r.status.replace(/_/g, ' ')}`)));
+    const steps = el('ol', 'workflow'); steps.setAttribute('aria-label', 'Planner → Implementor → Tester → Reviewer');
+    for (const role of ['planner', 'implementor', 'tester', 'reviewer']) {
+      const p = r.pipeline.find((p) => p.stage === role);
+      if (!p) continue;
+      const c = el('li', `cell ${p.status}`);
       const m = p.models;
-      c.append(el('span', 'st', p.status + (p.since ? ` ${ago(p.since)}` : '')), el('div', 'md', p.model || '—'), el('div', 'dt', p.detail));
-      if (m) c.append(el('div', 'dt', `req ${m.requested || 'host default'} · obs ${m.observed || 'unknown'}${m.mismatch === true ? ' · mismatch' : ''}`));
+      if (r.open && r.awaiting?.role === role) c.setAttribute('aria-current', 'step');
+      const name = el('div', 'role'), symbol = el('span', 'symbol', ({ done: '✓', failed: '×', running: '◉', waiting: '◷', skipped: '−', warn: '!', overdue: '!' })[p.status] || '○');
+      symbol.setAttribute('aria-hidden', 'true'); name.append(symbol, role[0].toUpperCase() + role.slice(1));
+      const status = p.status === 'running' ? (role === 'implementor' ? 'Recent activity' : 'Waiting for result') : p.status;
+      const observed = m?.observed || (p.model && p.model !== 'not reported' ? p.model : 'unknown');
+      c.append(name, el('span', 'st', status + (p.since ? ` · ${ago(p.since)}` : '')), el('div', 'md', `Observed · ${observed}`));
+      if (m) c.append(el('div', 'dt', `Requested · ${m.requested || 'host default'}${m.mismatch === true ? ' · mismatch' : ''}`));
+      if (p.provider) c.append(el('div', 'dt', PROVIDER_NAMES[p.provider] || p.provider));
+      c.append(el('div', 'dt', p.detail));
       c.title = `${p.stage}: ${p.status}\nmodel: ${p.model || 'none'}${p.provider ? `\nprovider: ${PROVIDER_NAMES[p.provider] || p.provider}` : ''}\n${p.detail}` +
         (m ? `\nproposed: ${m.proposed || 'none (models off)'}\nrequested: ${m.requested || 'host default'}\nobserved: ${m.observed || 'unknown'}\nmismatch: ${m.mismatch}` : '');
-      lane.append(c);
+      steps.append(c);
     }
+    lane.append(steps);
+    const gates = el('div', 'gates');
+    for (const stage of ['decision', 'checks', 'outcome']) {
+      const p = r.pipeline.find((p) => p.stage === stage);
+      if (p) gates.append(el('span', `gate ${p.status}`, `${stage === 'checks' ? 'Checks (last recorded)' : stage[0].toUpperCase() + stage.slice(1)} · ${p.detail}`));
+    }
+    lane.append(gates);
     box.append(lane);
   }
+  if (focusedRun) [...box.querySelectorAll('.lrun')].find((button) => button.dataset.run === focusedRun)?.focus({ preventScroll: true });
 }
 
 function render() {

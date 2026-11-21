@@ -6,7 +6,7 @@ export type RiskFloor = 'low' | 'elevated' | 'critical';
 export type Level = 'L0' | 'L1' | 'L2';
 type Pair = { model: string | null; effort: string | null };
 
-// Model levels per host (D6, proposals only until P2). L0 is for the tester only; critical work uses L2.
+// Model tiers for shadow proposals and planner/tester launch requests.
 const LEVELS: Level[] = ['L0', 'L1', 'L2'];
 const DEFAULT_LEVELS: Record<'claude-code' | 'codex', Record<Level, Pair>> = {
   'claude-code': { L0: { model: 'haiku', effort: 'high' }, L1: { model: 'sonnet', effort: 'high' }, L2: { model: 'opus', effort: 'high' } },
@@ -78,6 +78,10 @@ ${lines.length ? lines.join('\n') : '# test = "npm test"'}
 # The other provider reviews: Claude Code's work by Codex, Codex's by Claude Code.
 cross_provider = true
 claude_model = "sonnet"
+
+[models]
+# apply: planner on Opus / Astra high, tester on Haiku (Sonnet when critical) / Luna high.
+mode = "apply" # off | shadow (record proposals only) | apply
 
 [jev]
 # Jev (TypeSafe) decides at each prompt: workflow, risk, missing business rule.

@@ -5,6 +5,36 @@ title: Kế hoạch triển khai và trạng thái
 
 # Kế hoạch triển khai và trạng thái
 
+## Bản beta qua Git clone
+
+- [x] Developer duyệt apply cho dự án mới. Init giải thích cách dùng off trước khi xác nhận và giữ nguyên config đã có.
+
+- [x] Routing: developer đã accept run 20261121-aed583. Board: R1 không còn blocker và run 20261121-37731a verified.
+- [x] Chuẩn hóa hướng dẫn clone/build từ lockfile, tách hướng dẫn footer, loại log calibration khỏi file đưa vào Git và dừng setup nếu npm link lỗi.
+- [ ] Kiểm tra và review bản ứng viên, tạo commit, kiểm clone sạch trên commit đó. Developer thực hiện các bước cài/gỡ dành riêng cho chủ máy. Chỉ publish sau khi có quyết định phát hành.
+
+Các mục bên dưới là lịch sử theo từng đợt bàn giao.
+
+## BW · Board workflow live (21/11/2026)
+
+User xác nhận workflow như GitHub Actions và yêu cầu dùng task này kiểm thử thật. Plan native Astra high đã được worker challenge/accept: run 20261121-37731a, plan-0.md. Tiếp tục Mode A đã duyệt trong phiên; không dùng implementation child vì hook đã chứng minh helper không được sửa production. Native model requests ở lượt này được chọn tường minh theo bảng user đã duyệt; không coi đó là bằng chứng `[models] apply` đã bật. Chỉ dẫn cấp cao vẫn cấm sửa managed .jodex dù user cho phép; activation config còn cần developer.
+
+- [x] BW1 Parent: thay grid7 bằng ordered4 role nodes có connector/status/model requested vs observed, activity/gates riêng; giữ SSE/poll/filter; focus keyboard và narrow layout; không dependency. src/board.ts thêm read-only activity projection và chặn current role cho run đã đóng.
+- [x] BW2 Tester Luna high: affected49/49 và full148 JS/Python7/typecheck/build đạt trước delta CSS width cuối. Parent quan sát actual planner→implementor→tester handoffs, desktop và iPhone393px, Space toggle qua live refresh; CSS min-width/grid đã sửa theo quan sát mobile. Tester kiểm lại snapshot cuối; evidence current ở packet Jodex. Không seed run giả.
+- [ ] BW3 Reviewer đọc snapshot cuối + actual evidence; một correction cycle; developer acceptance riêng. Kết quả/Next hiện hành ở `jodex status` run 37731a để không sửa docs sau review và làm stale snapshot.
+
+Allowed scope: plugin/board.html, src/board.ts, test/board.test.ts và board regression fixtures, README, feature implementation/testing/planning. Các thay đổi từ task routing trước phải giữ nguyên. Parent mở server mới 4318 cho board đã build, không dừng server 4317 đang có. Bước tiếp theo BW2, rồi BW3. Chưa claim auto model routing hoặc model observed khi hook không cung cấp.
+
+## MR launch routing · 21/11/2026
+
+Developer đã duyệt bảng routing và xác nhận áp dụng khi launch planner/tester trong phiên tiếp tục: planner Claude Opus / Codex Astra high; tester Codex Luna high ở mọi risk, Claude Haiku thường và Sonnet khi critical. Giữ nguyên implementor và reviewer. Giữ off/shadow tương thích; apply chỉ áp dụng planner/tester, không mở rộng reviewer hoặc tự bật cấu hình managed. Model requested tách observed; host không hỗ trợ phải báo giới hạn, không giả đã chạy model.
+
+- [x] LR1 implementer rồi parent Mode A (developer duyệt): routing/launch/warning/docs đã sửa; RED3 trước routing, RED2→GREEN2 cho blank model/nullable effort. Native model handoff giữ observed unknown. Implementation child đã nhả quyền ghi; parent đóng băng production cho tester.
+- [x] LR2 unit_tester: tests đã bàn giao; 146/146 JS, Python7, typecheck/build exit0. Parent chạy built-CLI smoke 36/36 trong temp/home cô lập (off/shadow/apply × host × risk × role); không gọi provider. Production/test đóng băng cho review.
+- [ ] LR3 review/human acceptance: R0 independent Codex reviewer phát hiện risk stale khi shell sửa critical trước tester; parent Mode A xác nhận RED→GREEN và thêm reconcileSession ở startTests. Một correction cycle đã dùng. Tester kiểm lại rồi reviewer R1 trên snapshot cuối; kết quả và Next hiện hành được Jodex ghi tại run 20261121-aed583 (`jodex status`), human acceptance riêng vẫn cần developer.
+
+Allowed files: src/config.ts, src/team.ts, src/cli.ts (warning), src/run.ts (chỉ warning nếu cần), test/model-routing.test.ts và test routing liên quan, coding-harness-v4.md, README.md và docs/ai/{implementation,testing}/2026-11-20-feature-coding-harness.md. Không sửa .jodex/, không commit/push/global setup hoặc gọi provider ngoài review bắt buộc đã được chỉ định. Parent giữ planning. Bước tiếp theo LR3; các delta có sẵn thuộc phiên trước phải được bảo toàn.
+
 Đây là backlog chính của feature. Cập nhật trạng thái trên từng dòng mỗi khi bàn giao.
 
 - "Đã chuẩn bị" nghĩa là artifact đã sẵn sàng cho đợt nghiệm thu.
@@ -203,6 +233,17 @@ Astra vòng 3 (gpt-6.2-astra high, read-only), parent đã đối chiếu source
 
 **Token metrics và so sánh phiên (run 20261121-68d96b, plan-0 đã accept):** developer chốt: metric nằm trong Jodex board; ít blocker hơn là tốt hơn; token so sánh = input + output + cache write (cache read hiện riêng); token Jev hiện riêng; "đạt" = verified hoặc accepted trên run đã kết thúc. Live MR.5 phát hiện và sửa thêm (developer đồng ý từng mục): CLI chọn run theo phiên đang chạy, bỏ qua session file quá 30 phút; R4: giữ `promptAt` cho run do CLI tạo và worker reviewer nền không qua chọn run; hook Codex dùng `jodex hook` từ PATH (run 20261121-467bc4).
 
-- [ ] MR.6 Developer accept các run 20261121-4a4019, 20261121-68d96b, 20261121-467bc4 sau review chéo cuối.
+- [x] MR.6 Developer accept các run 20261121-4a4019, 20261121-68d96b, 20261121-467bc4.
+
+## RC · Sửa triệt để sau retrospective (21/11/2026, run 20261121-74b7d2)
+
+Plan đã accept: `.jodex/runs/20261121-74b7d2/plan-0.md`. Bỏ bước 5 (miễn trừ heredoc cho dev-only deny) và bước 8 (kiểm hash trust, chưa xác minh được). Ngoài phạm vi, chờ developer chốt quy tắc: session id tường minh cho CLI (Codex có `CODEX_SESSION_ID`), đóng run cũ khi có task mới. Quy ước làm việc đã ghi vào memory.
+
+- [x] RC.1 Cổng lệnh: che phần trong dấu nháy, cho phép `/dev/null`, `sed -n N[,M]p`; nhóm tự do = đúng các lệnh `[checks]` (bỏ regex TEST_BUILD và blacklist flag).
+- [x] RC.2 Brief reviewer: gate live và bằng chứng chỉ developer có không phải lý do `insufficient_evidence`.
+- [x] RC.3 `jodex doctor`: hooks file trong cache so với nguồn, trust đủ mọi event Codex.
+- [x] RC.4 Không launch reviewer trong sandbox Codex (`CODEX_SANDBOX`, đã kiểm live).
+- [x] RC.5 Tester một đợt: 129/129, typecheck, python.
+- [x] RC.6 Review chéo (run 74b7d2 R0 2 blocker, R1 1 blocker ANSI-C → sửa ở run 20261121-b49ca1, R0 no_blocking_findings); developer accept 74b7d2 và b49ca1 (b49ca1 verified). Còn việc của developer: thêm `build = "npm run build"` vào `[checks]` của `.jodex/config.toml`; chốt session id tường minh cho CLI và việc đóng run cũ khi có task mới.
 
 Trạng thái hiện tại: review_required. Bước tiếp theo: review chéo run 20261121-68d96b trên source hiện tại, sau đó developer accept. Bằng chứng kiểm thử ở mục MR của tài liệu testing.
