@@ -64,6 +64,9 @@ export type Run = {
   checks: Record<string, CheckResult>;
   commandDecisions?: Record<string, boolean>; // D2 cache: normalized command -> denied
   testerOutOfScope?: string[];
+  testerStartedAt?: string; // the latest `jodex test start`
+  testerDoneAt?: string; // the tester reported a result (not set when it was cancelled or expired)
+  roleModels?: Partial<Record<Role, string>>; // model each subagent role actually ran on
   readOnlyAgents?: string[];
   agentRoles?: Record<string, Role>; // role of each subagent, fixed when first seen // reviewer/planner subagent IDs: read-only for good, even after they stop being awaited // non-test files changed while the tester ran
   awaiting?: { role: Role; since: string } | null; // a subagent the worker is waiting for

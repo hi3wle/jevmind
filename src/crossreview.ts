@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { parse } from 'smol-toml';
 import { refreshBoard } from './board.ts';
 import { loadConfig } from './config.ts';
 import { latestReview, listRuns, type Run, saveRun } from './run.ts';
@@ -19,6 +20,19 @@ export function crossHost(run: Run, enabled: boolean): Host | null {
   if (!enabled) return null;
   const other: Host = run.host === 'codex' ? 'claude-code' : 'codex';
   return hasCli(CLI[other]) ? other : null;
+}
+
+// The model a reviewer will use, known before it reports: Claude's from the Jodex config, Codex's
+// from its own config. The actual model replaces it when the review ends.
+export function expectedModel(host: Host, claudeModel: string): string | null {
+  if (host === 'claude-code') return claudeModel;
+  try {
+    const file = path.join(process.env.CODEX_HOME ?? path.join(os.homedir(), '.codex'), 'config.toml');
+    const model = parse(fs.readFileSync(file, 'utf8')).model;
+    return typeof model === 'string' ? model : null;
+  } catch {
+    return null;
+  }
 }
 
 // Read-only reviewer profiles. Claude: read tools only, no MCP, no settings, hooks or session
@@ -76,6 +90,8 @@ export async function runReviewer(root: string, runId: string) {
     try {
       message = fs.readFileSync(outFile, 'utf8');
     } catch {}
+    // `codex exec` prints a settings banner on stderr that names the model.
+    model = /^model:\s*(\S+)/m.exec(r.stderr ?? '')?.[1] ?? null;
     fs.rmSync(outFile, { force: true });
   }
   // Re-read: the worker's hooks may have saved the run while the reviewer worked.
@@ -83,7 +99,7 @@ export async function runReviewer(root: string, runId: string) {
   const target = fresh && latestReview(fresh);
   if (!fresh || !target || target.round !== review.round || target.at || !fresh.awaiting) return;
   const token = fresh.awaiting.since;
-  target.reviewer = { ...target.reviewer!, model, costUsd: cost, elapsedMs: Date.now() - t0 };
+  target.reviewer = { ...target.reviewer!, model: model ?? target.reviewer!.model ?? null, costUsd: cost, elapsedMs: Date.now() - t0 };
   if (!message.trim()) {
     Object.assign(target, { at: new Date().toISOString(), status: 'invalid', error: `${cmd} exited ${r.status ?? r.signal}: ${(r.stderr || '').trim().split('\n').slice(-2).join(' ').slice(0, 300)}` });
     fresh.awaiting = null;

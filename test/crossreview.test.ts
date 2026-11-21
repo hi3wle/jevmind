@@ -13,6 +13,8 @@ import { tempRepo } from './helpers.ts';
 
 // Fake provider CLIs: each answers --version and returns a ReviewResult for the snapshot in the brief.
 const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'fakebin-'));
+process.env.CODEX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'codexhome-'));
+fs.writeFileSync(path.join(process.env.CODEX_HOME, 'config.toml'), 'model = "gpt-config"\n');
 const result = (status: string) => `const brief = process.argv.find((a) => a.includes('Snapshot ID')) || '';
 const id = (brief.match(/"snapshotId": "([0-9a-f]+)"/) || [])[1];
 const r = '\`\`\`json\\n' + JSON.stringify({ snapshotId: id, status: '${status}', findings: [] }) + '\\n\`\`\`';`;
@@ -20,6 +22,7 @@ fs.writeFileSync(path.join(bin, 'codex'), `#!/usr/bin/env node
 if (process.argv[2] === '--version') { console.log('codex-cli fake'); process.exit(0); }
 if (process.argv.includes('read-only') === false) process.exit(3);
 ${result('no_blocking_findings')}
+console.error('model: gpt-fake');
 require('fs').writeFileSync(process.argv[process.argv.indexOf('-o') + 1], 'Reviewed.\\n' + r);
 `);
 fs.writeFileSync(path.join(bin, 'claude'), `#!/usr/bin/env node
@@ -50,11 +53,12 @@ for (const [worker, reviewer, extra] of [['claude-code', 'codex', {}], ['codex',
     const out = startReview(root, run, loadConfig(root));
     assert.match(out.text, /cross-provider review/);
     assert.equal(run.reviews![0].reviewer!.host, reviewer);
+    assert.equal(run.reviews![0].reviewer!.model, reviewer === 'codex' ? 'gpt-config' : loadConfig(root).review.claudeModel, 'the model is known while the review runs');
     saveRun(root, run);
     await runReviewer(root, run.runId);
     run = listRuns(root)[0];
     assert.equal(run.reviews![0].status, 'no_blocking_findings');
     assert.equal(run.awaiting, null);
-    if (reviewer === 'claude-code') assert.equal(run.reviews![0].reviewer!.model, 'claude-sonnet-fake');
+    assert.equal(run.reviews![0].reviewer!.model, reviewer === 'codex' ? 'gpt-fake' : 'claude-sonnet-fake', 'the actual model replaces it');
   });
 }

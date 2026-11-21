@@ -27,6 +27,7 @@ export type HookEvent = {
   model?: string; // Codex only
   agent_id?: string; // present when the event comes from a subagent
   agent_type?: string;
+  agent_transcript_path?: string | null; // Claude SubagentStop: the subagent's own transcript
 };
 
 const hostOf = (ev: HookEvent) => (ev.turn_id ? 'codex' : 'claude-code');
@@ -183,6 +184,7 @@ async function onPreToolUse(root: string, ev: HookEvent) {
   const agentRole = ev.agent_id && existing ? (known ?? typed ?? existing.awaiting?.role) : undefined;
   if (ev.agent_id && existing && agentRole && !known) {
     existing.agentRoles = { ...(existing.agentRoles ?? {}), [ev.agent_id]: agentRole };
+    if (ev.model) existing.roleModels = { ...existing.roleModels, [agentRole]: ev.model }; // Codex events name the model
     saveRun(root, existing);
   }
   if (ev.agent_id && existing && agentRole) {
@@ -287,7 +289,8 @@ async function onSubagentStop(root: string, ev: HookEvent) {
   const role = run.awaiting.role;
   const retry = await recordSubagent(root, run, loadConfig(root), ev.last_assistant_message ?? '', ev.agent_type ?? null, !!ev.stop_hook_active, !ev.turn_id);
   if (retry === 'ignored') return {};
-  if (!retry) mergeRoleResult(root, run, role, token);
+  // Claude reports a subagent's model only in its own transcript.
+  if (!retry) mergeRoleResult(root, run, role, token, ev.model ?? claudeModel(ev.agent_transcript_path));
   if (retry) return { decision: 'block', reason: retry };
   refreshBoard();
   return {};
@@ -295,15 +298,16 @@ async function onSubagentStop(root: string, ev: HookEvent) {
 
 // D4 may have awaited the network meanwhile: merge only this role's result into the latest copy,
 // and drop it if that wait was cancelled or replaced (the awaiting token changed).
-export function mergeRoleResult(root: string, run: Run, role: Role, token: string) {
+export function mergeRoleResult(root: string, run: Run, role: Role, token: string, model?: string | null) {
   updateRun(root, run.runId, (latest) => {
     if (latest.awaiting?.since !== token) return;
+    if (model) latest.roleModels = { ...latest.roleModels, [role]: model };
     if (role === 'reviewer') {
       const done = latestReview(run)!;
       const i = (latest.reviews ?? []).findIndex((v) => v.round === done.round);
       if (i >= 0) latest.reviews![i] = done;
     } else if (role === 'planner') latest.plans = [...(latest.plans ?? []), ...(run.plans ?? []).slice((latest.plans ?? []).length)];
-    else latest.testerOutOfScope = run.testerOutOfScope;
+    else [latest.testerOutOfScope, latest.testerDoneAt] = [run.testerOutOfScope, run.testerDoneAt];
     latest.awaiting = null;
   });
 }

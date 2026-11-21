@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { runChecks } from '../src/checks.ts';
@@ -283,9 +284,13 @@ test('tester shell edits to production files are caught when it stops', async ()
   fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 99;\n'); // sed -i by the tester
   fs.mkdirSync(path.join(root, 'test'), { recursive: true });
   fs.writeFileSync(path.join(root, 'test/a.test.js'), '// ok\n');
-  await handleHook(ev(root, 'SubagentStop', { agent_id: 'T', agent_type: 'jodex:tester', last_assistant_message: 'tests added' }));
+  const transcript = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tr-')), 'agent-T.jsonl');
+  fs.writeFileSync(transcript, JSON.stringify({ type: 'assistant', message: { model: 'claude-sonnet-5-5' } }) + '\n');
+  await handleHook(ev(root, 'SubagentStop', { agent_id: 'T', agent_type: 'jodex:tester', agent_transcript_path: transcript, last_assistant_message: 'tests added' }));
   r = run0(root);
+  assert.equal(r.roleModels?.tester, 'claude-sonnet-5-5', "the subagent's own transcript names its model");
   assert.deepEqual(r.testerOutOfScope, ['src/a.js']);
+  assert.ok(r.testerDoneAt, 'a reported tester result is recorded for the board');
   check(root);
   assert.equal(evaluate(run0(root), loadConfig(root), sourceIdentity(root)).gates.find((g) => g.gate === 'tester_scope')?.state, 'pending');
 });
@@ -328,4 +333,21 @@ test('evidence outside the project or temp dirs, or secret-looking, is refused',
   assert.match(checkEvidence(root, ['.env.local'])!, /secret/);
   assert.match(checkEvidence(root, ['missing.png'])!, /not found/);
   assert.equal(checkEvidence(root, ['src/a.js']), null);
+});
+
+test('a new planner or tester attempt drops the previous attempt\'s model', async () => {
+  const { startTests } = await import('../src/team.ts');
+  const root = repo();
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'collab: x' }));
+  const r = run0(root);
+  r.roleModels = { planner: 'old-planner', tester: 'old-tester' };
+  assert.equal(startPlan(root, r).ok, true);
+  assert.equal(r.roleModels.planner, undefined);
+  const root2 = repo();
+  await handleHook(ev(root2, 'UserPromptSubmit', { prompt: 'x' }));
+  await handleHook(write(root2, 'src/a.js'));
+  const t = run0(root2);
+  t.roleModels = { tester: 'old-tester' };
+  assert.equal(startTests(root2, t).ok, true);
+  assert.equal(t.roleModels.tester, undefined);
 });

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Config, RiskFloor } from './config.ts';
 import { maxFloor } from './rules.ts';
-import { crossHost } from './crossreview.ts';
+import { crossHost, expectedModel } from './crossreview.ts';
 import { appendDecision, D4_THRESHOLD, newDecisionId } from './decisions.ts';
 import { jev, redact } from './jev.ts';
 import { changedPaths, jodexDir, type Manifest, manifest, readJson, sourceIdentity, writeJson } from './project.ts';
@@ -203,7 +203,7 @@ export function startReview(root: string, run: Run, cfg: Config, sameHost = fals
   });
   const review: Review = { round, scope: [...run.touched], snapshotId: identity, snapshotDir: dir, startedAt: new Date().toISOString(), at: null, status: null, findings: [], reviewedPaths: [], limitations: [], agentType: null };
   const host = sameHost ? null : crossHost(run, cfg.review.crossProvider);
-  review.reviewer = { host: host ?? ((run.host as 'claude-code' | 'codex' | null) ?? 'claude-code'), mode: host ? 'cross' : 'subagent' };
+  review.reviewer = { host: host ?? ((run.host as 'claude-code' | 'codex' | null) ?? 'claude-code'), mode: host ? 'cross' : 'subagent', model: host ? expectedModel(host, cfg.review.claudeModel) : null };
   run.reviews = [...(run.reviews ?? []), review];
   run.awaiting = { role: 'reviewer', since: review.startedAt };
   const brief = `${rolePrompt('reviewer')}
@@ -230,6 +230,7 @@ export function startPlan(root: string, run: Run): { ok: boolean; text: string }
   const n = (run.plans ?? []).length;
   if (n > PLAN_REVISION_BUDGET) return { ok: false, text: 'The plan revision budget is used up: block the plan or ask the developer.' };
   run.awaiting = { role: 'planner', since: new Date().toISOString() };
+  delete run.roleModels?.planner; // a new attempt reports its own model
   const brief = `${rolePrompt('planner')}
 ## Inputs
 - Original requirement: ${run.request || '(see the conversation)'}
@@ -253,6 +254,8 @@ export function startTests(root: string, run: Run): { ok: boolean; text: string 
   const lock = writeLock(run);
   if (lock) return { ok: false, text: lock };
   run.awaiting = { role: 'tester', since: new Date().toISOString() };
+  run.testerStartedAt = run.awaiting.since;
+  delete run.roleModels?.tester; // a new attempt reports its own model
   // Shell writes bypass PreToolUse; the tester's scope is checked against this when it stops.
   writeJson(path.join(runDir(root, run), 'tester-base.json'), manifest(root));
   const brief = `${rolePrompt('tester')}
@@ -366,6 +369,7 @@ export async function recordSubagent(root: string, run: Run, cfg: Config, messag
     const base = readJson<Manifest | null>(path.join(runDir(root, run), 'tester-base.json'), null);
     const outside = base ? changedPaths(base, manifest(root)).filter((p) => !isTestPath(p)) : [];
     if (outside.length) run.testerOutOfScope = [...new Set([...(run.testerOutOfScope ?? []), ...outside])];
+    run.testerDoneAt = new Date().toISOString();
   }
   run.awaiting = null;
   return null;
