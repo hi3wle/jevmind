@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { runChecks } from '../src/checks.ts';
-import { loadConfig } from '../src/config.ts';
+import { type Config, loadConfig } from '../src/config.ts';
 import { sourceIdentity } from '../src/project.ts';
 import { patchPaths, riskFloor, writePaths } from '../src/rules.ts';
 import { createRun, evaluate, type Run } from '../src/run.ts';
@@ -15,6 +15,7 @@ const cfg = (checks: Record<string, string>, critical: string[] = []) => ({
   checks,
   jev: { mode: 'off' as const, consent: false, dataLevel: 2 as const, thresholds: { raiseRisk: 0.5 } },
   review: { crossProvider: false, claudeModel: 'sonnet' },
+  models: { mode: 'off' as const, roles: {}, levels: {} as Config['models']['levels'] }, // off: levels are never read
 });
 const run = (over: Partial<Run> = {}): Run => ({
   runId: 'r', sessionId: 's', host: null, model: null, request: '', mode: 'solo', riskFloor: 'low', touched: [], checks: {},

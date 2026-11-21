@@ -713,9 +713,51 @@ M2 shipped without an MCP server. Changes from §4–§9:
 **Not built, on purpose:**
 - **D3 (stall detection):** the Stop gate's single block, the correction budget and the 30-minute subagent expiry already bound every loop the harness can see.
 - **D5 (Jev completion check):** the deterministic `Jodex status: <status>` check is exact, and a probabilistic check on top would add latency without catching anything it misses.
-- **D6 (model tiering):** the user picks models in the host.
+- **D6 (model tiering):** the user picks models in the host. See the 2026-11-21 note below: P1 records model attribution and shadow proposals only.
 
 These can be added if logs show a need.
+
+**Model attribution and harness fixes (2026-11-21, plan MR in `docs/ai/planning/2026-11-20-feature-coding-harness.md`):**
+- **Attempts:** each planner, tester and reviewer attempt is recorded in `run.attempts`, keyed by role and its awaiting token (reviewer: the round). Each attempt holds:
+  - `proposed`: the D6 policy's choice; null when `[models]` is off;
+  - `requested`: what Jodex asked the host for; a null field means the host's default;
+  - `observed`: what the host reported; a null field is unknown;
+  - `mismatch`: true, false or unknown.
+
+  Requested values are never copied into observed. A model alias against a full ID is unknown. An untyped (Codex) child, or a child not bound to the attempt, stays unknown. The legacy `roleModels` is read only, for old runs.
+- **Detached reviewer:** it gets its round when spawned, launches with the request frozen at `review start`, and is claimed once by an exclusive marker file. A late or duplicate worker never touches another round.
+- **`[models]`:**
+  - `mode = off | shadow | apply`. A missing section means off.
+  - `apply` runs as shadow, and `jodex status` / `check` warn about it until P2.
+  - `[models.roles]` sets a role's level: `L0` (tester only), `L1` (default) or `L2`. A critical floor proposes `L2`.
+  - `[models.claude]` and `[models.codex]` override a level's `{model, effort}`. Defaults: haiku, sonnet, opus and gpt-6-luna, gpt-6.2-sol, gpt-6.2-astra, all at effort high.
+- **Lazy collaborative run:** when Jev recommends collaborative mode (no `collab:` prefix), no run opens at prompt time. It opens and locks at the first in-repo write, or at the first shell command that is not reading, a test, a build or a `jodex` command.
+- **Outside the repository:**
+  - Temp paths (`os.tmpdir()`, `$TMPDIR`, `/tmp`) are ignored.
+  - Other outside paths are never touched files. The worker still may not write them while it waits for a role or an accepted plan.
+  - Symlinks are resolved in parent directories only.
+- **`jodex review plan`:** the worker's read-only cross review of a plan awaiting its challenge. It is written to `plan-<n>-review.md`, changes no plan decision or review round, and follows `[review] cross_provider`.
+- **Subagent replies:** a reply delivered through `SubagentHandback` is read from the subagent's transcript. An empty reply after the retry keeps the role awaited.
+- **Codex hooks** (`plugin/hooks/codex-hooks.json`) run `jodex hook` from `PATH`. After a plugin refresh, Codex 0.171.0 failed every hook that used `${CLAUDE_PLUGIN_ROOT}`, the same unexpanded placeholder as the statusline launcher. Claude Code keeps `plugin/hooks/hooks.json`. Detached reviewer workers (`review run`, `review plan-run`) name their run, so they skip the CLI's session-based run selection.
+- **CLI run selection:** `jodex check`, `review`, `plan`, `test`, `status` and `cancel` act on the run of the session mid-turn (the newest per-turn session file written in the last 30 minutes; older files are left by sessions that never stopped): its own run, else an unclaimed one, never another session's open run. With no session mid-turn, they act on the latest open run.
+- **Token metrics (host-reported only, never estimated; unknown is null, never 0):**
+  - Where the counts come from:
+    - **Claude typed subagent:** `attempt.usage`, read from its own transcript. Each message id counts once.
+    - **Claude cross reviewer:** from `claude -p` `modelUsage`.
+    - **Claude worker:** `run.workerUsage`, read from the main thread of the session transcript since `run.promptAt`.
+    - **Codex worker, Codex children and Codex cross reviewer:** unknown.
+  - **Board per run:** worker, planner, tester and reviewer tokens.
+    - A role that did not run is "not used".
+    - The total counts input + output + cache writes. It is flagged partial when a role that ran did not report.
+    - Cache reads and Jev tokens are shown separately.
+  - **Session comparison:** a session is compared with the same project's previous session, quality first. The order is:
+    1. share of finished runs verified or accepted;
+    2. review blockers per run (fewer is better);
+    3. correction rounds per run;
+    4. tokens per prompt (fully reported runs only);
+    5. minutes per prompt.
+
+    The first metric both sessions know and differ on gives the verdict. Each mean shows its sample size `n`.
 
 **Calibration** (`jodex calibrate [--apply]`, `src/calibrate.ts`):
 - **Reliability tables** (Jev's predicted probability against the observed rate, in 0.2 bands, with Brier score):

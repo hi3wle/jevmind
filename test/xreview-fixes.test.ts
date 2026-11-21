@@ -131,7 +131,7 @@ test('R1: helper subagents and the tester shell cannot write in team mode', asyn
   const helper = { agent_id: 'H', agent_type: 'general-purpose' };
   assert.ok(denied(await handleHook(ev(root, 'PreToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(root, 'src/a.js') }, ...helper }))));
   const r = run0(root);
-  startTests(root, r);
+  startTests(root, r, loadConfig(root));
   saveRun(root, r);
   const tester = { agent_id: 'T', agent_type: 'jodex:tester' };
   assert.ok(denied(await handleHook(bash(root, 'echo overwritten > src/a.js', tester))));
@@ -202,7 +202,7 @@ test('R3: a cancelled reviewer stays a reviewer when a tester stage starts; late
   const r = await reviewing(root);
   expireAwaiting(r, 'cancelled');
   saveRun(root, r);
-  startTests(root, r);
+  startTests(root, r, loadConfig(root));
   saveRun(root, r);
   const stale = run0(root);
   const reviewerWrite = ev(root, 'PreToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(root, 'test/a.test.js') }, agent_id: 'R', agent_type: 'jodex:reviewer' });

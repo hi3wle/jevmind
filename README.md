@@ -28,7 +28,7 @@ npm install && npm run build
 node plugin/dist/jodex.mjs setup   # once per machine
 ```
 
-`setup` links the `jodex` command onto your PATH. It then installs the Jodex plugin into each host it finds, using the host's own marketplace commands. For Codex, open `codex`, run `/hooks`, and trust the Jodex hooks once.
+`setup` links the `jodex` command onto your PATH. It then installs the Jodex plugin into each host it finds, using the host's own marketplace commands. For Codex, open `codex`, run `/hooks`, and trust the Jodex hooks once (again after an update changes them). Codex hooks run `jodex hook` from `PATH`, because Codex 0.171.0 leaves plugin-root placeholders in hook commands unexpanded; start Codex where `command -v jodex` succeeds.
 
 ```sh
 cd /path/to/your/project           # must be a git repository

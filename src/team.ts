@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Config, RiskFloor } from './config.ts';
 import { maxFloor } from './rules.ts';
-import { crossHost, expectedModel } from './crossreview.ts';
+import { crossHost, type Host } from './crossreview.ts';
 import { appendDecision, D4_THRESHOLD, newDecisionId } from './decisions.ts';
 import { jev, redact } from './jev.ts';
 import { changedPaths, jodexDir, type Manifest, manifest, readJson, sourceIdentity, writeJson } from './project.ts';
@@ -14,6 +14,7 @@ import {
   CORRECTION_BUDGET,
   evaluate,
   type Finding,
+  type ModelPair,
   latestPlan,
   latestReview,
   PLAN_REVISION_BUDGET,
@@ -25,6 +26,7 @@ import {
   touch,
   hasDisputed,
   writeLock,
+  AWAIT_TTL_MS,
 } from './run.ts';
 
 // Plugin files (role prompts, board template) sit next to plugin/dist/ in the bundle.
@@ -38,7 +40,7 @@ export function pluginFile(rel: string): string {
 // Role prompt = the Claude Code agent definition without its frontmatter, so both hosts use one text.
 export const rolePrompt = (role: Role) => fs.readFileSync(pluginFile(`agents/${role}.md`), 'utf8').replace(/^---[\s\S]*?---\s*/, '');
 
-const runDir = (root: string, run: Run) => path.join(jodexDir(root), 'runs', run.runId);
+export const runDir = (root: string, run: Run) => path.join(jodexDir(root), 'runs', run.runId);
 const baseDir = (root: string, run: Run) => path.join(runDir(root, run), 'base');
 
 // Keep each file's content from before this run's first write to it, so the review diff shows
@@ -138,6 +140,7 @@ export function reconcileSession(root: string, run: Run, cfg: Config) {
   if (!s) return;
   // A run opened by `jodex check` (shell edits only) still needs the prompt for its review.
   if (!run.request && s.lastPrompt) run.request = s.lastPrompt;
+  run.promptAt ??= s.promptAt; // the worker's token window starts at the prompt that opened the run
   // `jodex check` during an agent turn: the run belongs to that session.
   if (!run.sessionId && s.id) [run.sessionId, run.host, run.model] = [s.id, run.host ?? s.host ?? null, run.model ?? s.model ?? null];
   if (s.baseline) touch(run, changedPaths(s.baseline, manifest(root)), cfg);
@@ -149,23 +152,53 @@ export function reconcileSession(root: string, run: Run, cfg: Config) {
   if (s.decisionId && !(run.decisionIds ?? []).includes(s.decisionId)) run.decisionIds = [...(run.decisionIds ?? []), s.decisionId];
 }
 
-type SessionData = { id?: string; host?: string; model?: string | null; lastPrompt?: string; baseline?: Manifest; mode?: Mode; modeSource?: string; jevRiskFloor?: RiskFloor | null; decisionId?: string | null };
+type SessionData = { id?: string; host?: string; model?: string | null; lastPrompt?: string; promptAt?: string;baseline?: Manifest; mode?: Mode; modeSource?: string; jevRiskFloor?: RiskFloor | null; decisionId?: string | null };
 
-function sessionFile(root: string, run: Run): SessionData | null {
+// The session in the middle of a turn: its per-turn file is the newest (written at the prompt,
+// removed at Stop). CLI commands run by an agent use it to find that session's run.
+// shortcut: parallel sessions in one checkout can race here; hooks carry the real session id.
+export function activeSessionId(root: string): string | null {
   const dir = path.join(jodexDir(root), 'sessions');
   if (!fs.existsSync(dir)) return null;
-  const files = run.sessionId
-    ? [`${run.sessionId.replace(/[^\w-]/g, '_')}.json`]
-    : fs
-        .readdirSync(dir)
-        .filter((f) => !f.endsWith('.prompts.json'))
-        .sort((a, b) => fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs)
-        .slice(0, 1);
-  for (const f of files) {
-    const s = readJson<SessionData | null>(path.join(dir, f), null);
-    if (s) return { id: f.replace(/\.json$/, ''), ...s };
+  // A session that died without a Stop leaves its file behind: only a recent prompt counts.
+  const files = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.json') && !f.endsWith('.prompts.json'))
+    .map((f) => ({ f, at: fs.statSync(path.join(dir, f)).mtimeMs }))
+    .filter((x) => Date.now() - x.at < AWAIT_TTL_MS)
+    .sort((a, b) => b.at - a.at);
+  return files[0]?.f.replace(/\.json$/, '') ?? null;
+}
+
+function sessionFile(root: string, run: Run): SessionData | null {
+  const id = run.sessionId?.replace(/[^\w-]/g, '_') ?? activeSessionId(root);
+  if (!id) return null;
+  const s = readJson<SessionData | null>(path.join(jodexDir(root), 'sessions', `${id}.json`), null);
+  return s ? { id, ...s } : null;
+}
+
+// D6 proposal for a role attempt: the configured level (default L1), L2 on a critical floor.
+// Recorded only; P1 never changes what is launched.
+export function propose(role: Role, host: string | null, run: Run, cfg: Config): { proposed: ModelPair | null; policy: string | null; reason: string | null } {
+  const { mode, roles, levels } = cfg.models;
+  if (mode === 'off' || (host !== 'claude-code' && host !== 'codex')) return { proposed: null, policy: null, reason: null };
+  let level = roles[role] ?? 'L1';
+  const reason: string[] = [];
+  if (level === 'L0' && role !== 'tester') {
+    reason.push(`L0 is for the tester only; ${role} uses L1`);
+    level = 'L1';
   }
-  return null;
+  if (run.riskFloor === 'critical') {
+    reason.push('critical floor');
+    level = 'L2';
+  } else reason.push(`role level ${level}`);
+  if (mode === 'apply') reason.push('apply not implemented (P2), running shadow');
+  return { proposed: levels[host][level], policy: 'levels-v1', reason: reason.join('; ') };
+}
+
+const NOT_REQUESTED: ModelPair = { model: null, effort: null }; // the host's default
+function addAttempt(run: Run, cfg: Config, role: Role, key: string, since: string, host: string | null, launch: 'detached' | 'subagent', requested: ModelPair) {
+  run.attempts = [...(run.attempts ?? []), { role, key, since, host, launch, ...propose(role, host, run, cfg), requested, observed: { model: null, effort: null, source: null }, mismatch: 'unknown' }];
 }
 
 export function startReview(root: string, run: Run, cfg: Config, sameHost = false, evidence: string[] = []): { ok: boolean; text: string } {
@@ -203,7 +236,9 @@ export function startReview(root: string, run: Run, cfg: Config, sameHost = fals
   });
   const review: Review = { round, scope: [...run.touched], snapshotId: identity, snapshotDir: dir, startedAt: new Date().toISOString(), at: null, status: null, findings: [], reviewedPaths: [], limitations: [], agentType: null };
   const host = sameHost ? null : crossHost(run, cfg.review.crossProvider);
-  review.reviewer = { host: host ?? ((run.host as 'claude-code' | 'codex' | null) ?? 'claude-code'), mode: host ? 'cross' : 'subagent', model: host ? expectedModel(host, cfg.review.claudeModel) : null };
+  review.reviewer = { host: host ?? ((run.host as Host | null) ?? 'claude-code'), mode: host ? 'cross' : 'subagent', model: null };
+  // Frozen here: the detached reviewer launches with exactly this, whatever the config says later.
+  addAttempt(run, cfg, 'reviewer', round, review.startedAt, review.reviewer.host, host ? 'detached' : 'subagent', host === 'claude-code' ? { model: cfg.review.claudeModel, effort: null } : NOT_REQUESTED);
   run.reviews = [...(run.reviews ?? []), review];
   run.awaiting = { role: 'reviewer', since: review.startedAt };
   const brief = `${rolePrompt('reviewer')}
@@ -222,7 +257,7 @@ End your reply with one fenced \`\`\`json block containing the ReviewResult with
   return { ok: true, text: launch('reviewer', review.briefFile, brief) };
 }
 
-export function startPlan(root: string, run: Run): { ok: boolean; text: string } {
+export function startPlan(root: string, run: Run, cfg: Config): { ok: boolean; text: string } {
   run.mode = 'collaborative';
   const last = latestPlan(run);
   if (run.awaiting) return { ok: false, text: `Waiting for the ${run.awaiting.role} subagent.` };
@@ -231,6 +266,7 @@ export function startPlan(root: string, run: Run): { ok: boolean; text: string }
   if (n > PLAN_REVISION_BUDGET) return { ok: false, text: 'The plan revision budget is used up: block the plan or ask the developer.' };
   run.awaiting = { role: 'planner', since: new Date().toISOString() };
   delete run.roleModels?.planner; // a new attempt reports its own model
+  addAttempt(run, cfg, 'planner', `planner-${(run.attempts ?? []).filter((a) => a.role === 'planner').length}`, run.awaiting.since, run.host, 'subagent', NOT_REQUESTED);
   const brief = `${rolePrompt('planner')}
 ## Inputs
 - Original requirement: ${run.request || '(see the conversation)'}
@@ -250,12 +286,13 @@ export function decidePlan(run: Run, decision: 'accept' | 'revise' | 'blocked', 
   return decision === 'accept' ? 'Plan accepted. Implement it in this session, then run `jodex check`.' : decision === 'revise' ? 'Revision requested: run `jodex plan start` again.' : 'Plan blocked: report the reason to the developer.';
 }
 
-export function startTests(root: string, run: Run): { ok: boolean; text: string } {
+export function startTests(root: string, run: Run, cfg: Config): { ok: boolean; text: string } {
   const lock = writeLock(run);
   if (lock) return { ok: false, text: lock };
   run.awaiting = { role: 'tester', since: new Date().toISOString() };
   run.testerStartedAt = run.awaiting.since;
   delete run.roleModels?.tester; // a new attempt reports its own model
+  addAttempt(run, cfg, 'tester', `tester-${(run.attempts ?? []).filter((a) => a.role === 'tester').length}`, run.awaiting.since, run.host, 'subagent', NOT_REQUESTED);
   // Shell writes bypass PreToolUse; the tester's scope is checked against this when it stops.
   writeJson(path.join(runDir(root, run), 'tester-base.json'), manifest(root));
   const brief = `${rolePrompt('tester')}
@@ -342,7 +379,8 @@ export async function recordSubagent(root: string, run: Run, cfg: Config, messag
     if (role === 'reviewer' && lastJson(message)?.snapshotId !== latestReview(run)?.snapshotId) return 'ignored';
   }
   if (role === 'planner') {
-    if (!message.trim()) return retry ? null : `Reply with the plan as Markdown starting with "${PLAN_MARK}".`;
+    // Empty even after the retry: keep waiting instead of ending the stage without a plan.
+    if (!message.trim()) return retry ? 'ignored' : `Reply with the plan as Markdown starting with "${PLAN_MARK}".`;
     const revision = crypto.createHash('sha256').update(message).digest('hex');
     const file = path.join(runDir(root, run), `plan-${(run.plans ?? []).length}.md`);
     fs.mkdirSync(path.dirname(file), { recursive: true });

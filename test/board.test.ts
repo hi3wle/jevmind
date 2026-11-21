@@ -50,6 +50,35 @@ test('live pipeline: each stage with its model and status; abandoned roles becom
   assert.equal(p.tester.status, 'warn', 'a later attempt without a result is not done by the earlier one');
 });
 
+test('run usage: n/a for unused roles, null and partial for unknown ones, known-only total', async () => {
+  const { runUsage } = await import('../src/board.ts');
+  const u = (input: number, output: number) => ({ input, output, cacheRead: 100, cacheWrite: 1, source: 'claude-transcript' });
+  const attempt = (role: string, usage: object | null) => ({ role, key: role, since: '', host: 'claude-code', launch: 'subagent', proposed: null, requested: { model: null, effort: null }, observed: { model: null, effort: null, source: null }, mismatch: 'unknown', policy: null, reason: null, usage });
+  const run = { runId: 'r', sessionId: 'S', host: 'claude-code', model: null, request: '', mode: 'review', riskFloor: 'low', touched: [], checks: {}, stopBlocks: 0, open: false, createdAt: '', updatedAt: '', workerUsage: u(10, 5), attempts: [attempt('tester', u(2, 3)), attempt('reviewer', null)] } as any;
+  const jevD1 = { usage: { input_tokens: 7, output_tokens: 1 } } as any;
+  assert.deepEqual(runUsage(run, [jevD1, {} as any]), { worker: 16, planner: 'n/a', tester: 6, reviewer: null, total: 22, partial: true, cacheRead: 200, jev: 8 });
+  assert.deepEqual(runUsage({ ...run, workerUsage: null, attempts: [] }, []), { worker: null, planner: 'n/a', tester: 'n/a', reviewer: 'n/a', total: null, partial: true, cacheRead: 0, jev: null }, 'nothing known: no total, never 0');
+});
+
+test('compareSessions: quality first, then tokens, then minutes; unknown tokens are not 0', async () => {
+  const { compareSessions } = await import('../src/board.ts');
+  const t = (min: number) => new Date(Date.parse('2026-11-21T00:00:00Z') + min * 60e3).toISOString();
+  const run = (sessionId: string, start: number, status: string, total: number | null, minutes = 10, partial = false) =>
+    ({ project: 'p', sessionId, createdAt: t(start), finishedAt: t(start + minutes), status, decision: null, reviews: [], corrections: 0, usage: { total, partial } }) as any;
+  const verdict = (runs: any[]) => compareSessions(runs, 'C')!.verdict;
+  // A better verified share wins although it used far more tokens.
+  assert.match(verdict([run('P', 0, 'verified', 100), run('P', 20, 'review_required', 100), run('C', 100, 'verified', 5000)])!, /^Better .*share of runs verified or accepted 100% vs 50%/);
+  // Quality tie: tokens decide, then minutes.
+  assert.match(verdict([run('P', 0, 'verified', 100), run('C', 100, 'verified', 50)])!, /^Better .*tokens per prompt 50 vs 100/);
+  assert.match(verdict([run('P', 0, 'verified', 100), run('C', 100, 'verified', 100, 30)])!, /^Worse .*minutes per prompt 30\.0 vs 10\.0/);
+  // No earlier session: no verdict.
+  assert.equal(verdict([run('C', 100, 'verified', 100)]), null);
+  // Unknown (null or partial) tokens are left out, never read as 0.
+  const c = compareSessions([run('P', 0, 'verified', 100), run('C', 100, 'verified', null), run('C', 120, 'verified', 5, 10, true)], 'C')!;
+  assert.deepEqual([c.current.tokensPerPrompt, c.current.tokensN], [null, 0]);
+  assert.equal(c.verdict, 'No difference on the metrics both sessions report.');
+});
+
 test('live server: page, data, change events, and Host check', async () => {
   const { serveBoard } = await import('../src/board.ts');
   const root = tempRepo();

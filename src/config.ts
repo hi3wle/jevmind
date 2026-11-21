@@ -3,13 +3,35 @@ import { parse } from 'smol-toml';
 import { configPath } from './project.ts';
 
 export type RiskFloor = 'low' | 'elevated' | 'critical';
+export type Level = 'L0' | 'L1' | 'L2';
+type Pair = { model: string | null; effort: string | null };
+
+// Model levels per host (D6, proposals only until P2). L0 is for the tester only; critical work uses L2.
+const LEVELS: Level[] = ['L0', 'L1', 'L2'];
+const DEFAULT_LEVELS: Record<'claude-code' | 'codex', Record<Level, Pair>> = {
+  'claude-code': { L0: { model: 'haiku', effort: 'high' }, L1: { model: 'sonnet', effort: 'high' }, L2: { model: 'opus', effort: 'high' } },
+  codex: { L0: { model: 'gpt-6-luna', effort: 'high' }, L1: { model: 'gpt-6.2-sol', effort: 'high' }, L2: { model: 'gpt-6.2-astra', effort: 'high' } },
+};
 
 export type Config = {
   risk: { critical: string[]; elevated: string[]; humanReviewRequired: RiskFloor[] };
   checks: Record<string, string>; // name -> shell command, all required
   jev: { mode: 'off' | 'shadow' | 'enforce'; consent: boolean; dataLevel: 1 | 2; thresholds: { raiseRisk: number } };
   review: { crossProvider: boolean; claudeModel: string };
+  models: { mode: 'off' | 'shadow' | 'apply'; roles: Partial<Record<'planner' | 'tester' | 'reviewer', Level>>; levels: typeof DEFAULT_LEVELS };
 };
+
+function modelsConfig(raw: any): Config['models'] {
+  const roles: Config['models']['roles'] = {};
+  for (const role of ['planner', 'tester', 'reviewer'] as const) if (LEVELS.includes(raw?.roles?.[role])) roles[role] = raw.roles[role];
+  const levels = structuredClone(DEFAULT_LEVELS);
+  for (const [host, key] of [['claude-code', 'claude'], ['codex', 'codex']] as const)
+    for (const l of LEVELS) {
+      const o = raw?.[key]?.[l];
+      if (typeof o?.model === 'string') levels[host][l] = { model: o.model, effort: typeof o.effort === 'string' ? o.effort : null };
+    }
+  return { mode: ['shadow', 'apply'].includes(raw?.mode) ? raw.mode : 'off', roles, levels };
+}
 
 export function loadConfig(root: string): Config {
   const raw = parse(fs.readFileSync(configPath(root), 'utf8')) as Record<string, any>;
@@ -21,6 +43,7 @@ export function loadConfig(root: string): Config {
   return {
     // Default: the other provider reviews (Claude's work by Codex, Codex's by Claude).
     review: { crossProvider: review.cross_provider !== false, claudeModel: typeof review.claude_model === 'string' ? review.claude_model : 'sonnet' },
+    models: modelsConfig(raw.models), // absent: off, launches stay as before
     jev: {
       mode: ['shadow', 'enforce'].includes(jev.mode) ? jev.mode : 'off',
       consent: jev.consent === true,

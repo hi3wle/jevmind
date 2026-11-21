@@ -2,7 +2,7 @@
   "name": "jodex",
   "version": "0.1.0",
   "description": "Adaptive coding harness: routes coding tasks and gates completion on current check evidence.",
-  "hooks": "./hooks/hooks.json",
+  "hooks": "./hooks/codex-hooks.json",
   "mcpServers": "./.codex-plugin/statusline.mcp.json",
   "interface": {
     "displayName": "Jodex",

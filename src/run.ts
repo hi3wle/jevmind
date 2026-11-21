@@ -40,6 +40,27 @@ export type Review = {
   reviewer?: { host: 'claude-code' | 'codex'; mode: 'cross' | 'subagent'; launchedAt?: string; model?: string | null; costUsd?: number | null; elapsedMs?: number };
 };
 
+// Model attribution per role attempt: what the policy proposed, what Jodex asked the host for, and
+// what the host reported. A null field is unknown (observed) or not requested (host default).
+export type ModelPair = { model: string | null; effort: string | null };
+// Tokens a host reported for one role attempt or the worker; never estimated (null/absent: unknown).
+export type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number; source: string };
+export type Attempt = {
+  role: Role;
+  key: string; // reviewer: its review round (R0...); planner/tester: `${role}-${n}`
+  since: string; // the awaiting token of this attempt
+  host: string | null;
+  launch: 'detached' | 'subagent';
+  proposed: ModelPair | null; // null when [models] mode is off
+  requested: ModelPair;
+  observed: ModelPair & { source: string | null; models?: string[]; usageLeader?: string | null };
+  mismatch: boolean | 'unknown';
+  policy: string | null;
+  reason: string | null;
+  agentId?: string | null; // the same-host child bound to this attempt
+  usage?: Usage | null;
+};
+
 export type Plan = {
   revision: string; // sha256 of the plan text
   file: string;
@@ -66,7 +87,10 @@ export type Run = {
   testerOutOfScope?: string[];
   testerStartedAt?: string; // the latest `jodex test start`
   testerDoneAt?: string; // the tester reported a result (not set when it was cancelled or expired)
-  roleModels?: Partial<Record<Role, string>>; // model each subagent role actually ran on
+  roleModels?: Partial<Record<Role, string>>; // legacy (before attempts): read only, for old runs
+  attempts?: Attempt[];
+  promptAt?: string; // the prompt that started this run: the worker's token window begins here
+  workerUsage?: Usage | null; // the worker host session's tokens since promptAt (Claude only)
   readOnlyAgents?: string[];
   agentRoles?: Record<string, Role>; // role of each subagent, fixed when first seen // reviewer/planner subagent IDs: read-only for good, even after they stop being awaited // non-test files changed while the tester ran
   awaiting?: { role: Role; since: string } | null; // a subagent the worker is waiting for
@@ -178,6 +202,16 @@ export function touch(run: Run, paths: string[], cfg: Config) {
 }
 
 export const latestReview = (run: Run) => (run.reviews ?? []).at(-1) ?? null;
+export const attemptFor = (run: Run, role: Role, since: string) => (run.attempts ?? []).find((a) => a.role === role && a.since === since) ?? null;
+
+// An alias (`sonnet`) cannot be compared with the full ID the host reports, so that stays unknown.
+const ALIASES = new Set(['opus', 'sonnet', 'haiku', 'fable', 'best', 'default', 'inherit']);
+export function mismatchOf(requested: ModelPair, observed: ModelPair): boolean | 'unknown' {
+  const same = (['model', 'effort'] as const)
+    .filter((k) => requested[k] !== null)
+    .map((k) => (observed[k] === null || (k === 'model' && observed[k] !== requested[k] && ALIASES.has(requested[k]!)) ? null : observed[k] === requested[k]));
+  return same.includes(false) ? true : !same.length || same.includes(null) ? 'unknown' : false;
+}
 
 // Why the worker may not change files right now, or null.
 export function writeLock(run: Run): string | null {

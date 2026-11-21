@@ -141,7 +141,7 @@ test('collaborative: plan first, same worker challenges, one revision', async ()
   assert.equal(run0(root).mode, 'collaborative');
   assert.ok(denied(await handleHook(write(root, 'src/a.js'))), 'no edits before an accepted plan');
   let r = run0(root);
-  assert.equal(startPlan(root, r).ok, true);
+  assert.equal(startPlan(root, r, loadConfig(root)).ok, true);
   saveRun(root, r);
   const planner = { agent_id: 'P', agent_type: 'jodex:planner' };
   assert.ok(denied(await handleHook(write(root, 'src/a.js', planner))), 'planner is read-only');
@@ -149,7 +149,7 @@ test('collaborative: plan first, same worker challenges, one revision', async ()
   r = run0(root);
   assert.equal(r.plans!.length, 1);
   assert.match(decidePlan(r, 'revise', 'wrong symbol: a is a const'), /Revision requested/);
-  assert.equal(startPlan(root, r).ok, true);
+  assert.equal(startPlan(root, r, loadConfig(root)).ok, true);
   saveRun(root, r);
   await handleHook(ev(root, 'SubagentStop', { ...planner, last_assistant_message: '# Plan v2\n- export a new const' }));
   r = run0(root);
@@ -279,7 +279,7 @@ test('tester shell edits to production files are caught when it stops', async ()
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'x' }));
   await handleHook(write(root, 'src/a.js'));
   let r = run0(root);
-  startTests(root, r);
+  startTests(root, r, loadConfig(root));
   saveRun(root, r);
   fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 99;\n'); // sed -i by the tester
   fs.mkdirSync(path.join(root, 'test'), { recursive: true });
@@ -288,7 +288,9 @@ test('tester shell edits to production files are caught when it stops', async ()
   fs.writeFileSync(transcript, JSON.stringify({ type: 'assistant', message: { model: 'claude-sonnet-5-5' } }) + '\n');
   await handleHook(ev(root, 'SubagentStop', { agent_id: 'T', agent_type: 'jodex:tester', agent_transcript_path: transcript, last_assistant_message: 'tests added' }));
   r = run0(root);
-  assert.equal(r.roleModels?.tester, 'claude-sonnet-5-5', "the subagent's own transcript names its model");
+  const attempt = r.attempts!.find((a) => a.role === 'tester')!;
+  assert.deepEqual([attempt.observed.model, attempt.observed.source, attempt.agentId], ['claude-sonnet-5-5', 'claude-subagent-transcript', 'T'], "the typed child's own transcript names its model");
+  assert.equal(r.roleModels, undefined, 'roleModels is legacy and no longer written');
   assert.deepEqual(r.testerOutOfScope, ['src/a.js']);
   assert.ok(r.testerDoneAt, 'a reported tester result is recorded for the board');
   check(root);
@@ -341,13 +343,18 @@ test('a new planner or tester attempt drops the previous attempt\'s model', asyn
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'collab: x' }));
   const r = run0(root);
   r.roleModels = { planner: 'old-planner', tester: 'old-tester' };
-  assert.equal(startPlan(root, r).ok, true);
+  assert.equal(startPlan(root, r, loadConfig(root)).ok, true);
   assert.equal(r.roleModels.planner, undefined);
+  assert.deepEqual(r.attempts!.map((a) => [a.key, a.observed.model, a.since === r.awaiting!.since]), [['planner-0', null, true]], 'the attempt starts unknown');
   const root2 = repo();
   await handleHook(ev(root2, 'UserPromptSubmit', { prompt: 'x' }));
   await handleHook(write(root2, 'src/a.js'));
   const t = run0(root2);
   t.roleModels = { tester: 'old-tester' };
-  assert.equal(startTests(root2, t).ok, true);
+  assert.equal(startTests(root2, t, loadConfig(root2)).ok, true);
   assert.equal(t.roleModels.tester, undefined);
+  t.attempts![0].observed.model = 'claude-sonnet-5-5';
+  t.awaiting = null;
+  assert.equal(startTests(root2, t, loadConfig(root2)).ok, true);
+  assert.deepEqual(t.attempts!.map((a) => [a.key, a.observed.model]), [['tester-0', 'claude-sonnet-5-5'], ['tester-1', null]], 'a new attempt does not inherit the previous model');
 });

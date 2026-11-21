@@ -172,3 +172,37 @@ F1 implementer handoff: manifest command=jodex, args=statusline --mcp; exact dec
 F1 native independent check: old descriptor really fails native handshake; same-version plugin add refreshes cache, fixed descriptor native tools/list discovery succeeds. Full77/typecheck/build/diff pass. Durable raw outputs in native-statusline-registration-report.json. Tester released ownership; final reviewer next.
 
 F1 final: REVIEW_PASS. Parent đã refresh riêng `jodex@jodex` trên máy thật (native plugin add exit0), effective transport là jodex statusline --mcp; actual app-server discovery trả serverInfo=jodex-statusline, toolsError=null và đúng UI entrypoint. Không tạo model turn hoặc thay cấu hình provider/plugin khác. Native visual gate F1.4 còn mở: đóng/mở lại Codex hiện tại, /statusline chọn Jodex. Outcome review_required chỉ cho gate hiển thị/nghiệm thu của user.
+
+## MR · Model routing P0+P1 (21/11/2026)
+
+Plan đã accept: `.jodex/runs/20261121-4a4019/plan-1.md` (Jodex planner, sau hai vòng phản biện của Codex gpt-6.2-astra high). Phương án routing đã chốt: thang L0 haiku/luna high (chỉ thử nghiệm cho tester), L1 sonnet/sol high (mặc định mọi role), L2 opus/astra high (risk critical). Không leo thang tự động, không tăng bậc theo diff size hay risk elevated. `[models] mode = off|shadow|apply`, thiếu section = off. P1 chỉ ghi attribution trung thực; P2 (reviewer apply + kiểm catalog), P3 (same-host apply), P4 (fixture có lỗi cài sẵn) là follow-up.
+
+Sửa đổi so với plan-1 (developer chốt sau khi hết revision budget, thay thế các mục tương ứng trong plan-1):
+- **P0c thay thế:** bỏ allow-list `codex exec`/`claude -p` do worker gõ và bộ tokenizer shell. Thay bằng lệnh `jodex review plan`: Jodex tự chạy cross reviewer trên `plan-N.md` mới nhất với profile read-only đã test trong `src/crossreview.ts` `command()`, ghi kết quả cạnh plan, theo `[review] cross_provider` (tắt hoặc thiếu CLI kia thì in lý do và không làm gì). Đây là lệnh jodex, đã được phép khi đang khoá.
+- **A:** nhóm shell tự do khi mở run lazy chỉ gồm `isReadOnlyCommand`, lệnh jodex (`allowedWhileLocked`), và mục test/build của ROUTINE. `touch`, `mkdir`, `git add|commit|switch`, `node -e`, `make` và các routine ghi file khác mở run và bị khoá.
+- **B:** trên POSIX, realpath của `/tmp` cũng là thư mục tạm, cùng với `os.tmpdir()` và `$TMPDIR`.
+- **C:** subagent phụ được ghi vào thư mục tạm; giới hạn tester/reviewer/planner giữ nguyên.
+- **D:** giải quyết bằng P0c mới (theo `cross_provider`).
+- **E:** sửa lỗi đã tái hiện hai lần trong run 20261121-4a4019: SubagentStop đầu tiên của `jodex:planner` chạy nền không ghi nhận plan, chỉ lần gửi lại giống hệt mới được ghi. Tìm nguyên nhân trong `onSubagentStop`/`recordSubagent`, sửa kèm test.
+
+Astra vòng 3 (gpt-6.2-astra high, read-only), parent đã đối chiếu source; bổ sung bắt buộc:
+- **R3.1 (P0a):** lần ghi đầu tiên tạo run solo, `attach` nâng lên collaborative trong bộ nhớ rồi deny mà không lưu (`src/run.ts:150`, `src/hooks.ts:215`). Phải `saveRun` mode đã nâng trước khi deny. Test: Write bị deny, sau đó một lệnh shell không tự do ở hook invocation mới vẫn bị khoá.
+- **R3.2 (P0c):** `WORKFLOW` chỉ có `review start|wait` (`src/hooks.ts:48`). Thêm ngoại lệ riêng cho worker khi plan đang chờ: `jodex review plan` được phép; subagent phụ vẫn bị chặn (dòng 203 không nới). Kết quả gắn với đúng revision của plan, không đổi decision của plan, không tiêu tốn round code review. Codex: launch qua hook ngoài sandbox như reviewer hiện tại. Test hai chiều provider, helper bị chặn, cross review tắt hoặc thiếu CLI thì không làm gì.
+- **R3.3 (P1e):** subagent Codex không có kiểu nhận role từ `awaiting` (`src/hooks.ts:180`), nên helper đến trước có thể bị ghi là tester. Giữ nguyên cách nhận kết quả role; attribution của child không có bằng chứng độc lập (không `agent_type` `jodex:<role>`) để `unknown`. Test helper đến **trước** child thật.
+- **R3.4:** `plan start` khi chưa có run tạo run với request rỗng, host null (`src/cli.ts:147`), `crossHost(null)` chọn Codex. Gắn session đang gọi (reconcile) trước khi dựng brief hoặc chọn provider.
+- **R3.5 (E, nguyên nhân):** planner giao `# Plan` qua `SubagentHandback.message`; `onSubagentStop` chỉ đọc `last_assistant_message` (`src/hooks.ts:290`), lần retry rỗng có thể xoá `awaiting` mà không lưu plan. Lấy handback của đúng child; test giao lần đầu, giao trùng, retry rỗng.
+- **R3.6 (B/C):** không resolve symlink ở phần tử cuối: xoá/di chuyển một symlink trong repo trỏ vào `/tmp` vẫn là thao tác trong repo. Chỉ resolve thư mục cha. Test link trong repo trỏ vào `/tmp`.
+- **R3.7 (P1d):** bỏ fallback `latestReview` cho worker không có round: worker cũ không có round thì không làm gì (chạy lại bằng `jodex review wait`). Test worker R0 không round đến sau khi R1 bắt đầu.
+- **R3.8 (test):** `git log` không thuộc nhóm tự do theo A; test `jodex plan start` tách khỏi case Stop của câu hỏi; case non-temp không dùng `JODEX_HOME` của helper (nằm trong temp).
+
+- [x] MR.1 Implementer: P0-pre, P0a, P0b, P0c mới, E, R3.1–R3.6.
+- [x] MR.2 Implementer: P1a–P1g (attempt record, config `[models]`, round binding, observation, board, docs, build).
+- [x] MR.3 Tester: test theo plan-1 §6 + A–E; `npm test`, typecheck, python unittest, build, `jodex check`.
+- [ ] MR.4 Reviewer chéo (critical paths), tối đa một correction cycle; developer acceptance. Run 20261121-4a4019: R0 blocker (`&` đơn) đã sửa; R1 blocker (lint/`--fix` trong nhóm tự do) hết budget, chuyển sang run 20261121-68d96b. Run 68d96b: R0 blocker (flag trong dấu nháy) đã sửa; R1 insufficient_evidence vì tài liệu này chưa cập nhật. Chờ review lại và developer `accept` cho cả hai run.
+- [x] MR.5 Live checks trên optimize-lab (developer đồng ý gửi source optimize-lab cho Claude và Codex): hai chiều review, hook Codex, nested reviewer tắt hook, effort trong banner Codex. Model của child Codex: không áp dụng (child Codex không có kiểu, luôn unknown theo R3.3; có unit test). Kết quả ở mục MR của tài liệu testing.
+
+**Token metrics và so sánh phiên (run 20261121-68d96b, plan-0 đã accept):** developer chốt: metric nằm trong Jodex board; ít blocker hơn là tốt hơn; token so sánh = input + output + cache write (cache read hiện riêng); token Jev hiện riêng; "đạt" = verified hoặc accepted trên run đã kết thúc. Live MR.5 phát hiện và sửa thêm (developer đồng ý từng mục): CLI chọn run theo phiên đang chạy, bỏ qua session file quá 30 phút; R4: giữ `promptAt` cho run do CLI tạo và worker reviewer nền không qua chọn run; hook Codex dùng `jodex hook` từ PATH (run 20261121-467bc4).
+
+- [ ] MR.6 Developer accept các run 20261121-4a4019, 20261121-68d96b, 20261121-467bc4 sau review chéo cuối.
+
+Trạng thái hiện tại: review_required. Bước tiếp theo: review chéo run 20261121-68d96b trên source hiện tại, sau đó developer accept. Bằng chứng kiểm thử ở mục MR của tài liệu testing.

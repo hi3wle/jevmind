@@ -8,7 +8,7 @@ import { readCalibrations } from './calibrate.ts';
 import { type Decision, readDecisions } from './decisions.ts';
 import { jodexDir, readJson, writeJson } from './project.ts';
 import { riskFloor } from './rules.ts';
-import { AWAIT_TTL_MS, listRuns, type Role, type Run } from './run.ts';
+import { type Attempt, AWAIT_TTL_MS, listRuns, type ModelPair, type Role, type Run, type Usage } from './run.ts';
 
 export const jodexHome = () => process.env.JODEX_HOME ?? path.join(os.homedir(), '.jodex');
 const registryFile = () => path.join(jodexHome(), 'projects.json');
@@ -61,11 +61,101 @@ export type BoardRun = {
   awaiting: { role: string; since: string; overdue: boolean } | null;
   pipeline: StageView[];
   paths: string[];
+  corrections: number;
+  usage: RunUsage;
 };
+
+// Harness evaluation. Tokens compared = input + output + cache writes; cache reads are cheap and
+// dwarf the rest, so they are shown apart. Only host-reported counts: unknown is null, never 0.
+type RoleTokens = number | null | 'n/a'; // n/a: the role did not run
+export type RunUsage = { worker: RoleTokens; planner: RoleTokens; tester: RoleTokens; reviewer: RoleTokens; total: number | null; partial: boolean; cacheRead: number; jev: number | null };
+const counted = (u: Usage) => u.input + u.output + u.cacheWrite;
+
+export function runUsage(r: Run, jevDecisions: Decision[]): RunUsage {
+  let total = 0;
+  let known = false;
+  let partial = false;
+  let cacheRead = 0;
+  const add = (u: Usage | null | undefined): number | null => {
+    if (!u) {
+      partial = true;
+      return null;
+    }
+    known = true;
+    total += counted(u);
+    cacheRead += u.cacheRead;
+    return counted(u);
+  };
+  const role = (name: Role): RoleTokens => {
+    const list = (r.attempts ?? []).filter((a) => a.role === name);
+    if (!list.length) return 'n/a';
+    const vals = list.map((a) => add(a.usage));
+    return vals.some((v) => v === null) ? null : vals.reduce((s, v) => s! + v!, 0);
+  };
+  const worker = add(r.workerUsage);
+  const [planner, tester, reviewer] = [role('planner'), role('tester'), role('reviewer')];
+  const jev = jevDecisions.filter((d) => d.usage?.input_tokens != null && d.usage.output_tokens != null);
+  return { worker, planner, tester, reviewer, total: known ? total : null, partial, cacheRead, jev: jev.length ? jev.reduce((s, d) => s + d.usage!.input_tokens! + d.usage!.output_tokens!, 0) : null };
+}
+
+// One session against the same project's session before it, quality first, tokens second:
+// share of finished runs verified or accepted, blockers and corrections per run (fewer is better),
+// then tokens and minutes per prompt. `n` is the sample behind each mean.
+export type SessionMetrics = { sessionId: string; runs: number; finished: number; goodShare: number | null; blockersPerRun: number; correctionsPerRun: number; tokensPerPrompt: number | null; tokensN: number; minutesPerPrompt: number | null };
+export type SessionComparison = { current: SessionMetrics; previous: SessionMetrics | null; verdict: string | null };
+
+const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+function sessionMetrics(sessionId: string, runs: BoardRun[]): SessionMetrics {
+  const finished = runs.filter((r) => r.status !== 'in_progress');
+  const good = finished.filter((r) => r.status === 'verified' || r.decision === 'accepted').length;
+  const tokens = runs.filter((r) => r.usage.total !== null && !r.usage.partial).map((r) => r.usage.total!);
+  return {
+    sessionId,
+    runs: runs.length,
+    finished: finished.length,
+    goodShare: finished.length ? good / finished.length : null,
+    blockersPerRun: runs.reduce((s, r) => s + r.reviews.reduce((b, v) => b + v.blockers, 0), 0) / runs.length,
+    correctionsPerRun: runs.reduce((s, r) => s + r.corrections, 0) / runs.length,
+    tokensPerPrompt: mean(tokens),
+    tokensN: tokens.length,
+    minutesPerPrompt: mean(finished.filter((r) => r.finishedAt).map((r) => (Date.parse(r.finishedAt!) - Date.parse(r.createdAt)) / 60e3)),
+  };
+}
+
+export function compareSessions(runs: BoardRun[], sessionId: string): SessionComparison | null {
+  const mine = runs.filter((r) => r.sessionId === sessionId);
+  if (!mine.length) return null;
+  const start = mine.reduce((a, r) => (r.createdAt < a ? r.createdAt : a), mine[0].createdAt);
+  const before = runs.filter((r) => r.project === mine[0].project && r.sessionId && r.sessionId !== sessionId && r.createdAt < start).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const prevId = before.at(-1)?.sessionId;
+  const current = sessionMetrics(sessionId, mine);
+  const previous = prevId ? sessionMetrics(prevId, runs.filter((r) => r.sessionId === prevId)) : null;
+  if (!previous) return { current, previous, verdict: null };
+  // The first metric both sessions know and differ on decides; higher is better only for the share.
+  const order: [keyof SessionMetrics, string, boolean][] = [
+    ['goodShare', 'share of runs verified or accepted', true],
+    ['blockersPerRun', 'review blockers per run', false],
+    ['correctionsPerRun', 'correction rounds per run', false],
+    ['tokensPerPrompt', 'tokens per prompt', false],
+    ['minutesPerPrompt', 'minutes per prompt', false],
+  ];
+  for (const [key, label, higher] of order) {
+    const [a, b] = [current[key] as number | null, previous[key] as number | null];
+    if (a === null || b === null || Math.abs(a - b) < 1e-9) continue;
+    return { current, previous, verdict: `${(a > b) === higher ? 'Better' : 'Worse'} than the previous session: ${label} ${fmt(a, key)} vs ${fmt(b, key)}.` };
+  }
+  return { current, previous, verdict: 'No difference on the metrics both sessions report.' };
+}
+const fmt = (v: number, key: string) => (key === 'goodShare' ? `${Math.round(v * 100)}%` : key === 'tokensPerPrompt' ? String(Math.round(v)) : v.toFixed(1));
 
 // The harness flow of one run, stage by stage, with the model behind each and its status.
 export type StageStatus = 'done' | 'running' | 'waiting' | 'idle' | 'pending' | 'skipped' | 'warn' | 'failed' | 'overdue';
-export type StageView = { stage: string; status: StageStatus; model: string | null; provider: string | null; detail: string; since?: string };
+export type StageView = { stage: string; status: StageStatus; model: string | null; provider: string | null; detail: string; since?: string; models?: StageModels };
+// Model attribution of the stage's attempt (pairs shown as "model · effort"; null: none or unknown).
+type StageModels = { proposed: string | null; requested: string | null; observed: string | null; mismatch: boolean | 'unknown' };
+const pair = (p: ModelPair | null) => (p && (p.model || p.effort) ? [p.model ?? '?', p.effort].filter(Boolean).join(' · ') : null);
+const stageModels = (a: Attempt | null | undefined): StageModels | undefined =>
+  a ? { proposed: pair(a.proposed), requested: pair(a.requested), observed: pair(a.observed), mismatch: a.mismatch } : undefined;
 type Intake = Pick<Decision, 'source' | 'model' | 'latencyMs'> | null;
 
 const reviewerLabel = (v?: { host: string; mode: string }) => (v ? `${v.host}${v.mode === 'cross' ? ' (cross)' : ''}` : null);
@@ -77,12 +167,16 @@ const OUTCOME: Record<string, StageStatus> = { verified: 'done', review_required
 export function pipeline(r: Run, intake: Intake, now = Date.now()): StageView[] {
   const host = r.host ?? 'cli';
   const waitingFor = (role: string) => (r.awaiting?.role === role ? r.awaiting.since : null);
-  const roleStage = (role: string, done: boolean, applies: boolean, detail: string, lost = false): StageView => {
+  const lastAttempt = (role: Role) => r.attempts?.findLast((a) => a.role === role);
+  const roleStage = (role: Role, done: boolean, applies: boolean, detail: string, lost = false): StageView => {
     const since = waitingFor(role);
-    const model = r.roleModels?.[role as Role] ?? `${host} subagent (model not reported yet)`;
-    if (since) return { stage: role, status: overdue(since, now) ? 'overdue' : 'running', model, provider: host, detail, since };
-    if (lost && !done) return { stage: role, status: 'warn', model, provider: host, detail: 'no result: cancelled or expired' };
-    return { stage: role, status: done ? 'done' : applies ? 'pending' : 'skipped', model: done ? model : null, provider: done ? host : null, detail: done || applies ? detail : 'not used in this mode' };
+    const a = lastAttempt(role);
+    const models = stageModels(a);
+    // Observed only; old runs recorded roleModels before attempts existed.
+    const model = a?.observed.model ?? r.roleModels?.[role] ?? 'not reported';
+    if (since) return { stage: role, status: overdue(since, now) ? 'overdue' : 'running', model, provider: host, detail, since, models };
+    if (lost && !done) return { stage: role, status: 'warn', model, provider: host, detail: 'no result: cancelled or expired', models };
+    return { stage: role, status: done ? 'done' : applies ? 'pending' : 'skipped', model: done ? model : null, provider: done ? host : null, detail: done || applies ? detail : 'not used in this mode', models: done ? models : undefined };
   };
   const lastPlan = r.plans?.at(-1);
   const checks = Object.entries(r.checks);
@@ -121,6 +215,7 @@ export function pipeline(r: Run, intake: Intake, now = Date.now()): StageView[] 
           provider: review.reviewer?.host ?? null,
           detail: `${review.round} · ${review.reviewer?.mode === 'cross' ? 'cross-provider' : 'subagent'}${review.at ? ` · ${review.status?.replace(/_/g, ' ')}` : ''}${review.findings.some((f) => f.confirmed) ? ` · ${review.findings.filter((f) => f.confirmed).length} blocker(s)` : ''}`,
           since: review.at ? undefined : review.startedAt,
+          models: stageModels(r.attempts?.find((a) => a.role === 'reviewer' && a.key === review.round)),
         },
     {
       stage: 'outcome',
@@ -139,7 +234,7 @@ export type BoardDecision = Decision & {
   outcome: { changed: boolean; runStatus: string | null; ruleRisk: string | null } | null; // null while unknown
 };
 
-export function collect(): { generatedAt: string; projects: { name: string; root: string }[]; runs: BoardRun[]; decisions: BoardDecision[]; calibrations: any[] } {
+export function collect(): { generatedAt: string; projects: { name: string; root: string }[]; runs: BoardRun[]; decisions: BoardDecision[]; calibrations: any[]; sessions: Record<string, SessionComparison> } {
   const projects = readJson<string[]>(registryFile(), [])
     .filter((root) => fs.existsSync(root))
     .map((root) => ({ name: path.basename(root), root }));
@@ -212,10 +307,14 @@ export function collect(): { generatedAt: string; projects: { name: string; root
         awaiting: r.awaiting ? { role: r.awaiting.role, since: r.awaiting.since, overdue: overdue(r.awaiting.since, Date.now()) } : null,
         pipeline: pipeline(r, (r.decisionIds ?? []).map((id) => byId.get(id)).find((d) => d?.point === 'D1') ?? null),
         paths: r.touched.slice(0, 20),
+        corrections: r.corrections ?? 0,
+        usage: runUsage(r, decs.filter((d) => d.runId === r.runId || r.decisionIds?.includes(d.id))),
       }),
     );
   });
-  return { generatedAt: new Date().toISOString(), projects, runs, decisions, calibrations };
+  const sessions: Record<string, SessionComparison> = {};
+  for (const id of new Set(runs.map((r) => r.sessionId).filter((s): s is string => !!s))) sessions[id] = compareSessions(runs, id)!;
+  return { generatedAt: new Date().toISOString(), projects, runs, decisions, calibrations, sessions };
 }
 
 // The template ships in the plugin: plugin/board.html, next to plugin/dist/ in the bundle.

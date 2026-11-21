@@ -5,14 +5,14 @@ import { spawnSync } from 'node:child_process';
 import { jodexHome, refreshBoard, registerProject, serveBoard, writeBoard } from './board.ts';
 import { apiKey, keyFile, saveKey } from './jev.ts';
 import { calibrate } from './calibrate.ts';
-import { launchReviewer, runReviewer, waitReview } from './crossreview.ts';
-import { decidePlan, reconcileSession, startPlan, startReview, startTests } from './team.ts';
+import { crossHost, launchReviewer, runPlanReview, runReviewer, waitPlanReview, waitReview } from './crossreview.ts';
+import { activeSessionId, decidePlan, reconcileSession, startPlan, startReview, startTests } from './team.ts';
 import { runChecks } from './checks.ts';
-import { loadConfig } from './config.ts';
+import { type Config, loadConfig } from './config.ts';
 import { type HookEvent, handleHook } from './hooks.ts';
 import { planInit, uninstallProject } from './init.ts';
 import { gitRoot, isInitialized, sourceIdentity } from './project.ts';
-import { createRun, evaluate, expireAwaiting, formatStatus, listRuns, type Run, saveRun, updateRun } from './run.ts';
+import { createRun, evaluate, expireAwaiting, findOpenRun, formatStatus, latestPlan, listRuns, type Run, saveRun, updateRun } from './run.ts';
 import { doctor, setup, setupStatusline, uninstallGlobal } from './setup.ts';
 import { renderStatusline, serveStatusline } from './statusline.ts';
 
@@ -28,6 +28,7 @@ const HELP = `jodex — adaptive coding harness
                               open an independent review round (the other provider by default);
                               --evidence attaches a screenshot or log from the project or a temp dir
   jodex review wait           wait for the review result and print the status
+  jodex review plan           cross review of the plan awaiting your challenge (the other provider, read-only)
   jodex plan start            ask a planner subagent for a plan (collaborative mode)
   jodex plan accept|revise|block [reason]
                               record your challenge of the latest plan
@@ -58,7 +59,15 @@ function projectRoot(): string {
   return root;
 }
 
+const warnModels = (cfg: Config, out: (s: string) => void) => {
+  if (cfg.models.mode === 'apply') out('Jodex: [models] mode = apply is not supported yet; running shadow.');
+};
+
+// The run of the session mid-turn (its own, else an unclaimed one); never another session's run.
+// With no session mid-turn (the developer at a terminal), the latest open run.
 const currentRun = (root: string): Run | undefined => {
+  const sid = activeSessionId(root);
+  if (sid) return findOpenRun(root, sid) ?? undefined; // session ids are uuids: the file name is the id
   const run = listRuns(root).findLast((r) => r.open);
   if (run && expireAwaiting(run)) saveRun(root, run);
   return run;
@@ -137,6 +146,7 @@ async function main(argv: string[]) {
       // Merge only the check results: a detached reviewer may have saved the run meanwhile.
       const saved = updateRun(root, run.runId, (fresh) => Object.assign(fresh.checks, run.checks)) ?? run;
       refreshBoard();
+      warnModels(cfg, log);
       return log(formatStatus(saved, evaluate(saved, cfg, sourceIdentity(root))));
     }
     case 'review':
@@ -144,10 +154,20 @@ async function main(argv: string[]) {
     case 'test': {
       const root = projectRoot();
       const cfg = loadConfig(root);
-      const run = currentRun(root) ?? (cmd === 'plan' && rest[0] === 'start' ? createRun(root, null, '') : fail('No open Jodex run; edit a file or run `jodex check` first.'));
       const sub = rest[0];
+      // Detached workers name their run: they must not depend on which session is mid-turn.
+      if (cmd === 'review' && sub === 'run') return runReviewer(root, rest[1], rest[2]);
+      if (cmd === 'review' && sub === 'plan-run') return runPlanReview(root, rest[1], Number(rest[2]));
+      const run = currentRun(root) ?? (cmd === 'plan' && sub === 'start' ? createRun(root, null, '') : fail('No open Jodex run; edit a file or run `jodex check` first.'));
       let out: { ok: boolean; text: string };
-      if (cmd === 'review' && sub === 'run') return runReviewer(root, rest[1]); // detached reviewer process
+      if (cmd === 'review' && sub === 'plan') {
+        if (run.awaiting || latestPlan(run)?.decision !== null) return fail('No plan is awaiting your challenge.');
+        if (!crossHost(run, cfg.review.crossProvider)) return log('Cross review is off or the other provider CLI is not installed: no plan review.');
+        const text = await waitPlanReview(root, run, process.argv[1], 100 * 1000); // fits the default 2-minute Bash tool timeout
+        return log(text ?? 'The plan review is still running; run `jodex review plan` again.');
+      }
+      // `plan start` may create the run: claim the invoking session first (request, host, mode).
+      if (cmd === 'plan' && sub === 'start') reconcileSession(root, run, cfg);
       if (cmd === 'review' && sub === 'wait') {
         launchReviewer(root, run, process.argv[1]);
         const done = await waitReview(root, run.runId, process.argv[1], 100 * 1000); // fits the default 2-minute Bash tool timeout
@@ -161,8 +181,8 @@ async function main(argv: string[]) {
         if (rest.at(-1) === '--evidence') fail('--evidence needs a file path.');
         out = startReview(root, run, cfg, flag('--same-host'), rest.flatMap((a, i) => (rest[i - 1] === '--evidence' ? [a] : [])));
       }
-      else if (cmd === 'test' && sub === 'start') out = startTests(root, run);
-      else if (cmd === 'plan' && sub === 'start') out = startPlan(root, run);
+      else if (cmd === 'test' && sub === 'start') out = startTests(root, run, cfg);
+      else if (cmd === 'plan' && sub === 'start') out = startPlan(root, run, cfg);
       else if (cmd === 'plan' && ['accept', 'revise', 'block'].includes(sub)) out = { ok: true, text: decidePlan(run, sub === 'block' ? 'blocked' : (sub as 'accept' | 'revise'), rest.slice(1).join(' ')) };
       else return fail(HELP);
       saveRun(root, run);
@@ -184,6 +204,7 @@ async function main(argv: string[]) {
     case 'resume': {
       const root = projectRoot();
       const run = currentRun(root);
+      warnModels(loadConfig(root), log);
       if (!run) return log('No open Jodex run in this project.');
       if (cmd === 'resume') {
         log(`Original request: ${run.request || '(unknown)'}`);
