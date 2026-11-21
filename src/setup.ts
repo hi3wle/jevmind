@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'smol-toml';
 import { gitRoot, isInitialized } from './project.ts';
 
 // The repository root: the bundle lives at plugin/dist/jodex.mjs.
@@ -68,7 +69,8 @@ export function setup(log: (s: string) => void): boolean {
     log('plugin/dist/jodex.mjs is missing: run `npm install && npm run build` in the Jodex checkout first.');
     return false;
   }
-  const steps: Step[] = [{ label: 'link `jodex` onto PATH (npm link)', cmd: 'npm', args: ['link', '--no-audit', '--no-fund'], ok: /up to date|added/ }];
+  if (!run({ label: 'link `jodex` onto PATH (npm link)', cmd: 'npm', args: ['link', '--no-audit', '--no-fund'] }, log)) return false;
+  const steps: Step[] = [];
   if (hasCli('claude')) {
     steps.push(
       { label: 'Claude Code: add marketplace', cmd: 'claude', args: ['plugin', 'marketplace', 'add', root], ok: /already/i },
@@ -82,11 +84,11 @@ export function setup(log: (s: string) => void): boolean {
       { label: 'Codex: install plugin', cmd: 'codex', args: ['plugin', 'add', 'jodex@jodex'], ok: /already/i },
     );
   } else log('skip Codex: `codex` not found');
-  const ok = steps.map((s) => run(s, log)).every(Boolean);
-  if (hasCli('codex')) log('Codex: open `codex`, run /hooks, review and trust the Jodex hooks, then start a new thread.');
+  if (!steps.every((s) => run(s, log))) return false;
+  if (steps.some((s) => s.cmd === 'codex')) log('Codex: open `codex`, run /hooks, review and trust the Jodex hooks, then start a new thread.');
   log('Inline footer: `jodex setup --statusline` for Claude; Codex: enable Custom status line in /experimental, restart, then select Jodex in /statusline. Existing footers are not replaced.');
   log('Next: cd into a project and run `jodex init`.');
-  return ok;
+  return true;
 }
 
 export function uninstallGlobal(log: (s: string) => void): boolean {
@@ -106,10 +108,36 @@ export function uninstallGlobal(log: (s: string) => void): boolean {
   return steps.map((s) => run(s, log)).every(Boolean) && footerOk;
 }
 
+// Codex runs the plugin from its own cache and runs a hook only once it is trusted: after a
+// refresh the cache can be stale, and changed hooks need trust again (they show as "Failed").
+export function codexHooksState(): string {
+  const home = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
+  // The plugin folder: next to dist/ in the bundle, or <repo>/plugin when run from src/.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const plugin = [path.join(here, '..'), path.join(here, '..', 'plugin')].find((d) => fs.existsSync(path.join(d, '.codex-plugin/plugin.json')))!;
+  const version = JSON.parse(fs.readFileSync(path.join(plugin, '.codex-plugin/plugin.json'), 'utf8')).version;
+  const cache = path.join(home, 'plugins/cache/jodex/jodex', version);
+  if (!fs.existsSync(cache)) return 'plugin not cached (run jodex setup)';
+  try {
+    const file = String(JSON.parse(fs.readFileSync(path.join(cache, '.codex-plugin/plugin.json'), 'utf8')).hooks).replace(/^\.\//, '');
+    const cached = fs.readFileSync(path.join(cache, file), 'utf8');
+    if (cached !== fs.readFileSync(path.join(plugin, file), 'utf8')) return `cached ${file} differs from source (run jodex setup, then trust in /hooks)`;
+    let state: Record<string, unknown> = {};
+    try {
+      state = (parse(fs.readFileSync(path.join(home, 'config.toml'), 'utf8')) as any).hooks?.state ?? {};
+    } catch {}
+    const events = Object.keys(JSON.parse(cached).hooks).map((e) => e.replace(/[A-Z]/g, (c, i) => (i ? '_' : '') + c.toLowerCase()));
+    const missing = events.filter((e) => !(`jodex@jodex:${file}:${e}:0:0` in state));
+    return missing.length ? `not trusted: ${missing.join(', ')}; open codex, run /hooks and trust Jodex` : `trusted ${events.length}/${events.length} (${file})`;
+  } catch (e) {
+    return `cannot read the cached plugin (${(e as Error).message.slice(0, 80)})`;
+  }
+}
+
 export function doctor(cwd: string, log: (s: string) => void) {
   const out = (cmd: string, args: string[]) => {
     // `codex plugin list` prints the whole remote catalog (14k lines on M1's machine).
-    const r = spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const r = spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 15_000, killSignal: 'SIGKILL' });
     return r.status === 0 ? `${r.stdout}`.trim() : null;
   };
   log(`node            ${process.version}`);
@@ -119,13 +147,17 @@ export function doctor(cwd: string, log: (s: string) => void) {
   ] as const) {
     const version = out(cli, ['--version']);
     if (!version) {
-      log(`${host.padEnd(15)} not installed`);
+      log(`${host.padEnd(15)} unavailable (could not read CLI version)`);
       continue;
     }
-    const plugins = out(cli, [...listArgs]) ?? '';
+    const plugins = out(cli, [...listArgs]);
+    if (plugins === null) {
+      log(`${host.padEnd(15)} ${version.split('\n')[0]}; plugin list unavailable`);
+      continue;
+    }
     log(`${host.padEnd(15)} ${version.split('\n')[0]}; jodex plugin ${/jodex@jodex\s+installed/.test(plugins) || /❯ jodex@jodex/.test(plugins) ? 'installed' : 'NOT installed (run jodex setup)'}`);
   }
-  log('Codex hooks     need trust: open codex, run /hooks (not checkable from here)');
+  log(`Codex hooks     ${codexHooksState()}`);
   log('Inline footer   Claude: jodex setup --statusline; Codex: Custom status line in /experimental, restart, select Jodex in /statusline (selection not checkable here)');
   log('Roles           planner/reviewer read-only and tester test-only, enforced by hooks (not an OS sandbox)');
   log('Review          cross-provider by default: Claude Code work reviewed by Codex and the reverse');

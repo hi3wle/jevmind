@@ -5,6 +5,20 @@ title: Hướng dẫn thực hiện và bàn giao
 
 # Hướng dẫn thực hiện và bàn giao
 
+## BW · Live workflow cards (21/11/2026)
+
+Accepted native plan run37731a. Parent Mode A owns implementation. plugin/board.html renders one keyboard-selectable run card with an ordered Planner→Implementor→Tester→Reviewer list, status glyph/text, connectors, separate observed/requested models and three compact recorded gate summaries. Current awaited role gets aria-current; timed render restores run-button focus, reduced motion disables animation, narrow layouts stack nodes. Existing transport, filters and snapshots remain. src/board.ts adds a read-only activity summary for handoffs/plan challenge/blockers/check failures/closure and ignores stale awaited roles on closed runs. No engine/config/provider changes. Missing Codex hook model observation remains unknown.
+
+Actual native planner was requested as Astra high; source live UI showed planner handoff then implementation activity. Project config still has no models apply section; managed config editing is forbidden, so no auto-routing activation claim. Parent's source-backed board is at port4318 and existing4317 remains untouched. Independent tester/reviewer and visual handoff evidence follow in Jodex packet.
+
+## MR launch routing (21/11/2026)
+
+Developer confirmed actual planner/tester launch routing and then authorized Mode A to finish implementation after the helper-role hook denied the implementation child. src/team.ts selects the approved apply host/role/risk table using existing tiers and prints explicit native model arguments; src/cli.ts reports the supported scope; src/config.ts retains opt-in defaults. Reviewer/worker/off/shadow contracts remain unchanged. Claude requested effort is null (no native per-call field), Codex omits unspecified effort; requested is never promoted to observed. Unknown hosts and blank models are refused before role state changes. Native launch remains an instruction handoff, not an executed or verified model launch. Project managed config is untouched and currently has no models section.
+
+Initial implementer RED: three missing-behavior cases failed; parent GREEN/full suite 141/141 plus typecheck/Python7/build passed before final blank-model/nullable-effort changes. Parent reproduced those two gaps with failing tests before fixing them. Independent validation and current-source review follow in planning/testing.
+
+R0 correction: tester start now reconciles session changes before routing, matching review start. Shell-only critical changes therefore raise the current risk before Claude Haiku/Sonnet selection. Parent reproduced the reviewer finding through CLI test start (RED low vs critical), added the one-line reconciliation and reran GREEN. Current final checks/review are recorded by Jodex run 20261121-aed583; human acceptance remains separate.
+
 Áp dụng cho việc triển khai [v4](../../../coding-harness-v4.md). Ghi chú triển khai v3.2 (P1–P5, N1–N3) được lưu ở [docs/history/v3.2/implementation.md](../../history/v3.2/implementation.md).
 
 ## Điểm xuất phát

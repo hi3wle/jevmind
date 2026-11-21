@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from '../src/board.ts';
 import { runChecks } from '../src/checks.ts';
-import { loadConfig } from '../src/config.ts';
+import { loadConfig, renderConfig } from '../src/config.ts';
 import { readDecisions } from '../src/decisions.ts';
 import { claudeUsage, handleHook } from '../src/hooks.ts';
 import { type IntakeAnswers, jev } from '../src/jev.ts';
@@ -45,7 +45,9 @@ jev.askCommand = async () => {
 };
 
 const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
-const jodex = (root: string, ...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, JODEX_DISABLE: '' } });
+// CODEX_SESSION_ID is blanked so a check run from inside Codex does not leak its session into the fixture.
+const jodexAs = (sid: string, root: string, ...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, JODEX_DISABLE: '', CODEX_SESSION_ID: sid } });
+const jodex = (root: string, ...args: string[]) => jodexAs('', root, ...args);
 
 test('P0-pre: an agent message is not a new task and asks Jev nothing', async () => {
   const root = repo('', 'enforce');
@@ -58,9 +60,19 @@ test('P0a: a Jev-recommended collaborative question opens no run; reads, tests a
   const out: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'how does a work?' }));
   assert.match(out.hookSpecificOutput.additionalContext, /Jev recommends collaborative/);
   assert.equal(listRuns(root).length, 0, 'no run at prompt time');
-  for (const c of ['ls', 'npm test', 'jodex status']) assert.deepEqual(await handleHook(bash(root, c)), {}, c);
+  // `true` is the fixture's configured [checks] test command (D1: only configured checks are free).
+  for (const c of ['ls', 'true', 'jodex status']) assert.deepEqual(await handleHook(bash(root, c)), {}, c);
   assert.equal(listRuns(root).length, 0);
   assert.deepEqual(await handleHook(ev(root, 'Stop', { last_assistant_message: 'a is a constant.' })), {});
+});
+
+test('P0a: an unconfigured test command is not free before a plan and opens the run', async () => {
+  const root = repo('', 'enforce');
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'how does a work?' }));
+  const out: any = await handleHook(bash(root, 'npm test'));
+  assert.ok(denied(out));
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, PLAN_LOCK);
+  assert.equal(run0(root).mode, 'collaborative');
 });
 
 test('P0a: a command that may change files opens the collaborative run and is denied', async () => {
@@ -75,6 +87,25 @@ test('P0a: a command that may change files opens the collaborative run and is de
   const root = repo('', 'enforce');
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'collab: change a' }));
   assert.equal(run0(root)?.mode, 'collaborative', 'the collab: override still opens the run at prompt time');
+});
+
+test('R0 blocker: a configured check matches as written, not after masking its quotes', async () => {
+  const configured = () => {
+    const root = repo('', 'enforce');
+    const file = path.join(root, '.jodex/config.toml');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('test = "true"', 'test = \'npm test -- "a|b"\''));
+    return root;
+  };
+  const root = configured();
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'how does a work?' }));
+  for (const free of ['npm test -- "a|b"', 'npm test -- "a|b" 2>&1 | tail -3']) assert.deepEqual(await handleHook(bash(root, free)), {}, free);
+  assert.equal(listRuns(root).length, 0);
+  const root2 = configured();
+  await handleHook(ev(root2, 'UserPromptSubmit', { prompt: 'how does a work?' }));
+  const out: any = await handleHook(bash(root2, 'npm test -- "a;b"'));
+  assert.ok(denied(out));
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, PLAN_LOCK);
+  assert.equal(run0(root2).mode, 'collaborative');
 });
 
 test('R0 blocker: a lone `&` does not smuggle a write past the free set or the lock', async () => {
@@ -94,7 +125,7 @@ test('R1 blocker: source-rewriting lint and build flags are not free before a pl
   for (const c of ['npx eslint --fix src', 'npm run lint -- --fix', 'cargo clippy --fix', 'npx tsc --outDir src', ...quoted]) {
     const root = repo('', 'enforce');
     await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'how does a work?' }));
-    for (const free of ['npm test', 'npx tsc --noEmit -p .']) assert.deepEqual(await handleHook(bash(root, free)), {}, free);
+    for (const free of ['true', 'true 2>&1 | tail -5']) assert.deepEqual(await handleHook(bash(root, free)), {}, free);
     assert.equal(listRuns(root).length, 0);
     const out: any = await handleHook(bash(root, c));
     assert.ok(denied(out), c);
@@ -253,7 +284,7 @@ test('P1: attempts per role with keys; no proposal without [models]', async () =
   assert.deepEqual(r.attempts!.map((a) => [a.role, a.key, a.launch]), [['tester', 'tester-0', 'subagent'], ['reviewer', 'R0', 'subagent']]);
 });
 
-test('P1: proposals: critical floor is L2, L0 is for the tester only, apply runs as shadow', () => {
+test('P1: shadow proposals: critical floor is L2 and L0 is for the tester only', () => {
   const run = (riskFloor: 'low' | 'critical') => ({ riskFloor }) as Run;
   const shadow = loadConfig(repo('[models]\nmode = "shadow"\nroles = { reviewer = "L0", tester = "L0" }\n'));
   assert.deepEqual(propose('planner', 'claude-code', run('critical'), shadow).proposed, { model: 'opus', effort: 'high' });
@@ -264,14 +295,103 @@ test('P1: proposals: critical floor is L2, L0 is for the tester only, apply runs
   assert.deepEqual(propose('tester', 'claude-code', run('low'), shadow).proposed, { model: 'haiku', effort: 'high' });
   const apply = loadConfig(repo('[models]\nmode = "apply"\n'));
   const p = propose('planner', 'claude-code', run('low'), apply);
-  assert.deepEqual(p.proposed, { model: 'sonnet', effort: 'high' });
-  assert.match(p.reason!, /apply not implemented/);
+  assert.deepEqual(p.proposed, { model: 'opus', effort: 'high' });
+  assert.equal(p.policy, 'launch-v1');
 });
 
-test('P1: `jodex status` and `jodex check` warn that apply is not supported yet', () => {
+test('apply status explains the planner/tester scope and unchanged reviewer', () => {
   const root = repo('[models]\nmode = "apply"\n');
-  for (const cmd of ['status', 'check']) assert.match(jodex(root, cmd).stdout, /\[models\] mode = apply is not supported yet; running shadow/, cmd);
+  for (const cmd of ['status', 'check']) assert.match(jodex(root, cmd).stdout, /apply requests planner\/tester models; reviewer remains shadow/, cmd);
   assert.equal(/apply is not supported/.test(jodex(repo('[models]\nmode = "shadow"\n'), 'check').stdout), false);
+});
+
+test('apply launches planner/tester with approved native arguments and leaves observation unknown', () => {
+  for (const host of ['claude-code', 'codex']) for (const riskFloor of ['low', 'elevated', 'critical'] as const) for (const role of ['planner', 'tester'] as const) {
+    const root = repo('[models]\nmode = "apply"\n');
+    const cfg = loadConfig(root);
+    const r = createRun(root, null, 'route this role');
+    r.host = host;
+    r.riskFloor = riskFloor;
+    const model = host === 'codex' ? role === 'planner' ? 'gpt-6.2-astra' : 'gpt-6-luna' : role === 'planner' ? 'opus' : riskFloor === 'critical' ? 'sonnet' : 'haiku';
+    const out = role === 'planner' ? startPlan(root, r, cfg) : startTests(root, r, cfg);
+    assert.equal(out.ok, true, out.text);
+    const attempt = r.attempts!.at(-1)!;
+    assert.deepEqual(attempt.requested, { model, effort: host === 'codex' ? 'high' : null });
+    assert.deepEqual(attempt.observed, { model: null, effort: null, source: null });
+    assert.equal(attempt.mismatch, 'unknown');
+    assert.ok(out.text.includes(JSON.stringify(model)), out.text);
+    if (host === 'codex') {
+      assert.match(out.text, /"reasoning_effort":"high"/);
+      assert.match(out.text, /"fork_turns":"none"/);
+    } else assert.match(out.text, new RegExp(`"subagent_type":"jodex:${role}"`));
+    assert.match(out.text, /do not launch|Do not launch/);
+  }
+});
+
+test('apply refuses empty model overrides without awaiting a role', () => {
+  for (const role of ['planner', 'tester'] as const) {
+    const root = repo('[models]\nmode = "apply"\n');
+    const cfg = loadConfig(root);
+    cfg.models.levels.codex[role === 'planner' ? 'L2' : 'L0'].model = ' ';
+    const r = createRun(root, null, 'invalid model');
+    r.host = 'codex';
+    const out = role === 'planner' ? startPlan(root, r, cfg) : startTests(root, r, cfg);
+    assert.equal(out.ok, false);
+    assert.equal(r.awaiting, undefined);
+    assert.equal(r.attempts?.length ?? 0, 0);
+  }
+});
+
+test('apply tester reconciles shell-only critical edits before choosing the Claude model', async () => {
+  const root = repo('[models]\nmode = "apply"\n');
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'solo: update login' }));
+  await handleHook(write(root, 'src/a.js'));
+  assert.notEqual(run0(root).riskFloor, 'critical');
+  fs.mkdirSync(path.join(root, 'auth'));
+  fs.writeFileSync(path.join(root, 'auth/login.js'), 'export const login = true;\n');
+  const out = jodex(root, 'test', 'start');
+  assert.equal(out.status, 0, out.stderr);
+  const r = run0(root);
+  assert.equal(r.riskFloor, 'critical');
+  assert.deepEqual(r.attempts!.at(-1)!.requested, { model: 'sonnet', effort: null });
+});
+
+test('apply omits an unspecified Codex effort argument', () => {
+  const root = repo('[models]\nmode = "apply"\n');
+  const cfg = loadConfig(root);
+  cfg.models.levels.codex.L0.effort = null;
+  const r = createRun(root, null, 'default effort');
+  r.host = 'codex';
+  const out = startTests(root, r, cfg);
+  assert.equal(out.ok, true);
+  assert.doesNotMatch(out.text, /reasoning_effort/);
+  assert.equal(r.attempts!.at(-1)!.requested.effort, null);
+});
+
+test('off and shadow preserve native planner/tester defaults', () => {
+  for (const mode of ['off', 'shadow']) for (const role of ['planner', 'tester'] as const) {
+    const root = repo(`[models]\nmode = "${mode}"\n`);
+    const r = createRun(root, null, 'unchanged launch');
+    r.host = 'codex';
+    r.riskFloor = 'critical';
+    const out = role === 'planner' ? startPlan(root, r, loadConfig(root)) : startTests(root, r, loadConfig(root));
+    assert.equal(out.ok, true);
+    assert.deepEqual(r.attempts!.at(-1)!.requested, { model: null, effort: null });
+    assert.doesNotMatch(out.text, /reasoning_effort|fork_turns/);
+  }
+});
+
+test('apply rejects unknown hosts before waiting for planner or tester', () => {
+  for (const host of [null, 'other']) for (const role of ['planner', 'tester'] as const) {
+    const root = repo('[models]\nmode = "apply"\n');
+    const r = createRun(root, null, 'unknown host');
+    r.host = host;
+    const out = role === 'planner' ? startPlan(root, r, loadConfig(root)) : startTests(root, r, loadConfig(root));
+    assert.equal(out.ok, false);
+    assert.match(out.text, /known Claude Code or Codex host/);
+    assert.equal(r.awaiting, undefined);
+    assert.equal(r.attempts?.length ?? 0, 0);
+  }
 });
 
 test('P1: mismatchOf compares only what can be compared', () => {
@@ -406,6 +526,95 @@ test('CLI run choice: the active session never takes another session\'s open run
   assert.deepEqual(runs.find((r) => r.runId === a.runId)!.checks, {}, "A's run is untouched");
 });
 
+test('CLI run choice: CODEX_SESSION_ID outranks a newer session file', async () => {
+  const root = repo();
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task X', session_id: 'X' }));
+  await handleHook(write(root, 'src/a.js', { session_id: 'X' }));
+  const x = run0(root);
+  await new Promise((r) => setTimeout(r, 20)); // Y's session file is the newest
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task Y', session_id: 'Y', turn_id: 't' }));
+  await handleHook(write(root, 'src/a.js', { session_id: 'Y', turn_id: 't' }));
+  const y = listRuns(root).find((r) => r.runId !== x.runId)!;
+  assert.equal(y.sessionId, 'Y');
+  const out = jodexAs('X', root, 'check');
+  assert.equal(out.status, 0, out.stderr);
+  const runs = listRuns(root);
+  assert.equal(runs.length, 2, 'no new run');
+  assert.deepEqual(Object.keys(runs.find((r) => r.runId === x.runId)!.checks), ['test'], "X's run got the checks");
+  assert.deepEqual(runs.find((r) => r.runId === y.runId)!.checks, {}, "Y's run is untouched");
+});
+
+test('CLI run choice: CODEX_SESSION_ID without a run creates a run that is not the newer session\'s', async () => {
+  const root = repo();
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task Y', session_id: 'Y', turn_id: 't' }));
+  await handleHook(write(root, 'src/a.js', { session_id: 'Y', turn_id: 't' }));
+  const y = run0(root);
+  const out = jodexAs('X', root, 'check');
+  assert.equal(out.status, 0, out.stderr);
+  const runs = listRuns(root);
+  assert.deepEqual(runs.find((r) => r.runId === y.runId)!.checks, {}, "Y's run is untouched");
+  const x = runs.find((r) => r.runId !== y.runId);
+  assert.ok(x, 'a new run for X');
+  assert.notEqual(x.sessionId, 'Y', "the new run is not claimed by Y's session file");
+});
+
+test('CLI run choice: a run created for CODEX_SESSION_ID takes host and model from that session', async () => {
+  const root = repo();
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task X', session_id: 'X', turn_id: 't', model: 'gpt-m' }));
+  const out = jodexAs('X', root, 'check');
+  assert.equal(out.status, 0, out.stderr);
+  const runs = listRuns(root);
+  assert.equal(runs.length, 1);
+  assert.deepEqual([runs[0].sessionId, runs[0].host, runs[0].model, runs[0].request], ['X', 'codex', 'gpt-m', 'task X']);
+});
+
+test('CLI run choice: CODEX_SESSION_ID claims an unclaimed run for its own session, not the newest one', async () => {
+  const root = repo();
+  const r = createRun(root, null, ''); // opened by an earlier `jodex check`
+  saveRun(root, r);
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task X', session_id: 'X', turn_id: 't', model: 'gpt-x' }));
+  await new Promise((res) => setTimeout(res, 20)); // Y's session file is the newest
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task Y', session_id: 'Y', model: 'claude-y' }));
+  const out = jodexAs('X', root, 'check');
+  assert.equal(out.status, 0, out.stderr);
+  const runs = listRuns(root);
+  assert.equal(runs.length, 1);
+  assert.deepEqual([runs[0].runId, runs[0].sessionId, runs[0].request, runs[0].host, runs[0].model], [r.runId, 'X', 'task X', 'codex', 'gpt-x']);
+});
+
+test('a run first opened by `jodex check` after shell edits still takes the prompt\'s Jev mode', async () => {
+  const root = repo('', 'enforce');
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'change a', session_id: 'X', turn_id: 't' })); // D1 stub: collaborative
+  fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 2;\n'); // a shell edit: no PreToolUse
+  const out = jodexAs('X', root, 'check');
+  assert.equal(out.status, 0, out.stderr);
+  const r = run0(root);
+  assert.deepEqual([r.sessionId, r.mode, r.touched], ['X', 'collaborative', ['src/a.js']]);
+});
+
+test('a later Jev recommendation does not raise an open run that already has changes', async () => {
+  const root = repo('', 'enforce');
+  const r = createRun(root, 'S', 'task A');
+  r.touched = ['src/a.js'];
+  saveRun(root, r);
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'and change a again' })); // D1 stub: collaborative
+  for (const out of [await handleHook(bash(root, 'touch x')), await handleHook(write(root, 'src/a.js'))]) assert.equal(denied(out), false, JSON.stringify(out));
+  assert.equal(run0(root).runId, r.runId);
+  assert.equal(run0(root).mode, 'solo');
+});
+
+test('`collab:` still raises an open run that already has changes', async () => {
+  const root = repo('', 'enforce');
+  const r = createRun(root, 'S', 'task A');
+  r.touched = ['src/a.js'];
+  saveRun(root, r);
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'collab: change a again' }));
+  const out: any = await handleHook(write(root, 'src/a.js'));
+  assert.ok(denied(out));
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, PLAN_LOCK);
+  assert.equal(listRuns(root).find((x) => x.runId === r.runId)!.mode, 'collaborative');
+});
+
 test('CLI run choice: with no session file, `jodex status` shows the latest open run', () => {
   const root = repo();
   const r = createRun(root, 'A', 'from a terminal');
@@ -451,4 +660,11 @@ test('board: stage models from attempts, legacy roleModels fallback', () => {
   assert.deepEqual([p.reviewer.models?.requested, p.reviewer.models?.observed], ['sonnet', null]);
   p = by({ ...base, roleModels: { tester: 'legacy-model' } } as Run);
   assert.deepEqual([p.tester.model, p.tester.models], ['legacy-model', undefined]);
+});
+
+test('a new project config routes planner and tester models', () => {
+  const root = tempRepo({});
+  fs.mkdirSync(path.join(root, '.jodex'));
+  fs.writeFileSync(path.join(root, '.jodex/config.toml'), renderConfig({ test: 'true' }));
+  assert.equal(loadConfig(root).models.mode, 'apply');
 });

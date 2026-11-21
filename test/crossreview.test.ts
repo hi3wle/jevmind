@@ -39,6 +39,7 @@ console.log(JSON.stringify({ result: 'Reviewed.\\n' + r, total_cost_usd: 0.01, m
 `);
 for (const f of ['codex', 'claude']) fs.chmodSync(path.join(bin, f), 0o755);
 process.env.PATH = `${bin}:${process.env.PATH}`;
+delete process.env.CODEX_SESSION_ID; // spawned CLIs must pick the fixture's run, not the invoking Codex session's
 
 type Worker = 'claude-code' | 'codex';
 function repo(review = '') {
@@ -63,6 +64,26 @@ async function reviewing(root: string, worker: Worker): Promise<Run> {
   saveRun(root, run);
   return run;
 }
+
+test('apply leaves same-host and detached reviewer launch requests unchanged', () => {
+  for (const sameHost of [true, false]) {
+    const root = repo('claude_model = "haiku"');
+    fs.appendFileSync(path.join(root, '.jodex/config.toml'), '\n[models]\nmode = "apply"\n');
+    const cfg = loadConfig(root);
+    const run = createRun(root, null, 'review changed source');
+    run.host = 'codex';
+    run.mode = 'review';
+    run.touched = ['src/a.js'];
+    fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 2;\n');
+    runChecks(root, cfg, run, () => {});
+    const out = startReview(root, run, cfg, sameHost);
+    assert.equal(out.ok, true, out.text);
+    const attempt = reviewerAttempt(run);
+    assert.deepEqual(attempt.requested, sameHost ? { model: null, effort: null } : { model: 'haiku', effort: null });
+    assert.equal(attempt.launch, sameHost ? 'subagent' : 'detached');
+    assert.equal(attempt.observed.model, null);
+  }
+});
 
 for (const [worker, reviewer] of [['claude-code', 'codex'], ['codex', 'claude-code']] as const) {
   test(`${worker} work is reviewed by ${reviewer}`, async () => {
@@ -125,6 +146,37 @@ test('R4: the detached `review run` worker runs its named run even when another 
   assert.equal(out.status, 0, out.stderr);
   assert.equal(/No open Jodex run/.test(out.stdout + out.stderr), false);
   assert.equal(find(root, run.runId).reviews![0].status, 'no_blocking_findings');
+});
+
+test('A#7: `review wait` inside the Codex sandbox does not launch an unlaunched cross reviewer', async () => {
+  const root = repo();
+  const run = await reviewing(root, 'claude-code');
+  const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+  const out = spawnSync(process.execPath, [cli, 'review', 'wait'], { cwd: root, encoding: 'utf8', env: { ...process.env, JODEX_DISABLE: '1', CODEX_SANDBOX: 'seatbelt' } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /The reviewer was not started: the Jodex hook did not launch it/);
+  assert.equal(fs.existsSync(path.join(runDir(root, run), 'R0.launch')), false, 'no launch marker');
+  const r = find(root, run.runId).reviews![0];
+  assert.deepEqual([r.status, r.at, r.reviewer!.launchedAt ?? null], [null, null, null], 'the review is still pending, not invalid');
+});
+
+test('R1: `review plan` inside the Codex sandbox reports an unlaunched plan review at once', () => {
+  const root = repo();
+  const run = createRun(root, 'S', 'redesign a', 'claude-code');
+  const plan = path.join(runDir(root, run), 'plan-0.md');
+  fs.mkdirSync(path.dirname(plan), { recursive: true });
+  fs.writeFileSync(plan, '# Plan\n- change a\n');
+  run.plans = [{ revision: 'x', file: path.relative(root, plan), at: '', decision: null }];
+  saveRun(root, run);
+  const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+  const t0 = Date.now();
+  const out = spawnSync(process.execPath, [cli, 'review', 'plan'], { cwd: root, encoding: 'utf8', timeout: 20_000, env: { ...process.env, JODEX_DISABLE: '1', CODEX_SANDBOX: 'seatbelt' } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /The plan review was not started: the Jodex hook did not launch it/);
+  assert.ok(Date.now() - t0 < 10_000, 'no wait for the 100 s poll');
+  const file = planReviewFile(root, run, 0);
+  assert.equal(fs.existsSync(file), false, 'no plan review');
+  assert.equal(fs.existsSync(file.replace(/\.md$/, '.launch')), false, 'no launch marker');
 });
 
 test('the Claude reviewer runs with the model frozen at review start', async () => {

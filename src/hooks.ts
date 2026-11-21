@@ -6,11 +6,11 @@ import { appendDecision, D1_THRESHOLDS, type Decision, decideIntake, newDecision
 import { jev, redact } from './jev.ts';
 import { changedPaths, gitRoot, identityOf, isInitialized, jodexDir, type Manifest, manifest, readJson, writeJson } from './project.ts';
 import { isJodexPath, isOutsideRoot, isTaskNotification, isTempPath, maxFloor, riskFloor, writePaths } from './rules.ts';
-import { attemptFor, createRun, evaluate, type Role, findOpenRun, formatStatus, latestPlan, latestReview, mismatchOf, type Mode, type ModelPair, raiseMode, type Run, saveRun, touch, updateRun, type Usage, writeLock } from './run.ts';
+import { attemptFor, canRaise, createRun, evaluate, type Role, findOpenRun, formatStatus, latestPlan, latestReview, mismatchOf, type Mode, type ModelPair, raiseMode, type Run, saveRun, touch, updateRun, type Usage, writeLock } from './run.ts';
 import { maybeAutoCalibrate } from './calibrate.ts';
-import { gateCommand, isTestOrBuild } from './commands.ts';
+import { gateCommand } from './commands.ts';
 import { launchPlanReview, launchReviewer } from './crossreview.ts';
-import { isReadOnlyCommand, isTestPath, READ_TOOLS, recordBase, recordSubagent, rememberPrompt, SHELL_WRITES } from './team.ts';
+import { isReadOnlyCommand, isTestPath, maskQuoted, READ_TOOLS, recordBase, recordSubagent, rememberPrompt, SHELL_WRITES } from './team.ts';
 
 // Hook input shared by Claude Code and Codex (verified in M0).
 export type HookEvent = {
@@ -48,19 +48,33 @@ const CONTEXT = `Jodex harness is active in this project. If you change files: r
 const WORKFLOW = /^jodex\s+(status|resume|check|cancel|review\s+(start|wait)|plan\s+(start|accept|revise|block)|test\s+start)\b/;
 // Agents decorate commands (`jodex review wait 2>&1; echo "exit=$?"`): every chained part must be a
 // workflow command, a read-only command or an echo, and nothing may redirect into a file.
-function everyPart(cmd: string, ok: (part: string) => boolean): boolean {
-  const c = cmd.replace(/\d?>&\d/g, '');
+// Quoted text is masked first, so operators inside quotes neither split nor reject a command;
+// redirection to /dev/null writes nothing.
+// `ok` gets each part masked (for pattern checks) and as written (for exact matches).
+function everyPart(cmd: string, ok: (part: string, raw: string) => boolean): boolean {
+  const m = maskQuoted(cmd);
+  if (m === null) return false;
+  const blank = (s: string) => ' '.repeat(s.length); // lengths stay equal, so positions map to cmd
+  const c = m.replace(/\d?>&\d/g, blank).replace(/(\d|&)?>>?\s*\/dev\/null(?=\s|$|[;&|)])/g, blank);
   if (/[<>`\n]|\$\(/.test(c)) return false;
-  return c
-    .split(/&&|\|\||;|\||&/) // a lone `&` backgrounds one command and starts the next
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .every(ok);
+  const raw = [...cmd].map((ch, i) => (c[i] === ' ' && m[i] !== ' ' ? ' ' : ch)).join('');
+  const parts: [string, string][] = [];
+  let start = 0;
+  for (const sep of c.matchAll(/&&|\|\||;|\||&/g)) {
+    // a lone `&` backgrounds one command and starts the next
+    parts.push([c.slice(start, sep.index), raw.slice(start, sep.index)]);
+    start = sep.index + sep[0].length;
+  }
+  parts.push([c.slice(start), raw.slice(start)]);
+  return parts.filter(([p]) => p.trim()).every(([p, r]) => ok(p.trim(), r.trim()));
 }
 const lockedPart = (s: string) => WORKFLOW.test(s) || isReadOnlyCommand(s) || /^echo\b/.test(s);
 export const allowedWhileLocked = (cmd: string) => everyPart(cmd, lockedPart);
-// Before a Jev-recommended plan exists, tests and builds also run freely; anything else opens the run.
-const freeBeforePlan = (cmd: string) => everyPart(cmd, (s) => lockedPart(s) || isTestOrBuild(s));
+// Before a Jev-recommended plan exists, the project's own configured checks also run freely,
+// matched exactly (nothing is guessed from flags); anything else opens the run.
+function freeBeforePlan(cmd: string, checks: string[]): boolean {
+  return checks.includes(cmd.trim()) || everyPart(cmd, (s, raw) => lockedPart(s) || checks.includes(raw));
+}
 // The worker's cross review of a plan awaiting its challenge (not a helper subagent's).
 const PLAN_REVIEW = /^\s*jodex\s+review\s+plan\s*(2>&1)?\s*$/;
 const planPending = (run: Run) => !run.awaiting && run.mode === 'collaborative' && latestPlan(run)?.decision === null;
@@ -165,7 +179,7 @@ function attach(run: Run, root: string, ev: HookEvent) {
   run.model ??= ev.model ?? claudeModel(ev.transcript_path);
   run.promptAt ??= s?.promptAt;
   if (s?.decisionId && !(run.decisionIds ?? []).includes(s.decisionId)) run.decisionIds = [...(run.decisionIds ?? []), s.decisionId];
-  if (s?.mode) raiseMode(run, s.mode, s.modeSource ?? 'override');
+  if (s?.mode && canRaise(run, s.modeSource)) raiseMode(run, s.mode, s.modeSource ?? 'override');
   if (s?.jevRiskFloor) {
     run.jevRiskFloor = maxFloor(run.jevRiskFloor ?? 'low', s.jevRiskFloor);
     run.riskFloor = maxFloor(run.riskFloor, s.jevRiskFloor);
@@ -218,7 +232,7 @@ async function onPreToolUse(root: string, ev: HookEvent) {
       return deny('in team modes only the worker and the tester change files.');
     // A Jev-recommended collaborative task opens its run at the first command that may change files.
     const session = !ev.agent_id ? readSession(root, ev.session_id) : null;
-    if (session?.mode === 'collaborative' && existing?.mode !== 'collaborative' && !freeBeforePlan(cmd)) {
+    if (session?.mode === 'collaborative' && existing?.mode !== 'collaborative' && !freeBeforePlan(cmd, Object.values(loadConfig(root).checks))) {
       existing ??= createRun(root, ev.session_id, session.lastPrompt);
       attach(existing, root, ev);
       saveRun(root, existing);

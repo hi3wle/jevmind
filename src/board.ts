@@ -60,6 +60,7 @@ export type BoardRun = {
   modeSource: string | null;
   awaiting: { role: string; since: string; overdue: boolean } | null;
   pipeline: StageView[];
+  activity: string;
   paths: string[];
   corrections: number;
   usage: RunUsage;
@@ -164,9 +165,21 @@ const overdue = (since: string, now: number) => now - Date.parse(since) >= AWAIT
 const REVIEW_STATUS: Record<string, StageStatus> = { no_blocking_findings: 'done', changes_required: 'failed', insufficient_evidence: 'warn', invalid: 'failed' };
 const OUTCOME: Record<string, StageStatus> = { verified: 'done', review_required: 'warn', failed_verification: 'failed', blocked: 'failed' };
 
+export function workflowActivity(r: Run): string {
+  if (!r.open) return `Closed · ${r.completion?.status?.replace(/_/g, ' ') ?? 'outcome not recorded'}`;
+  if (r.awaiting) return `Waiting for ${r.awaiting.role} result`;
+  const plan = r.plans?.at(-1);
+  if (plan?.decision === 'blocked') return 'Plan blocked · developer action required';
+  if (plan && !plan.decision) return 'Waiting for implementor to challenge the plan';
+  if (r.reviews?.at(-1)?.status === 'changes_required') return 'Correction required · reviewer found blockers';
+  if (Object.values(r.checks).some((c) => c.exitCode !== 0)) return 'Checks failed · last recorded results';
+  if (r.reviews?.at(-1)?.status === 'no_blocking_findings') return 'Review complete · waiting for completion gate';
+  return 'Implementation / checks · last recorded activity';
+}
+
 export function pipeline(r: Run, intake: Intake, now = Date.now()): StageView[] {
   const host = r.host ?? 'cli';
-  const waitingFor = (role: string) => (r.awaiting?.role === role ? r.awaiting.since : null);
+  const waitingFor = (role: string) => (r.open && r.awaiting?.role === role ? r.awaiting.since : null);
   const lastAttempt = (role: Role) => r.attempts?.findLast((a) => a.role === role);
   const roleStage = (role: Role, done: boolean, applies: boolean, detail: string, lost = false): StageView => {
     const since = waitingFor(role);
@@ -210,11 +223,11 @@ export function pipeline(r: Run, intake: Intake, now = Date.now()): StageView[] 
       ? { stage: 'reviewer', status: r.mode === 'solo' ? 'skipped' : 'pending', model: null, provider: null, detail: r.mode === 'solo' ? 'not required (solo)' : 'required, not started' }
       : {
           stage: 'reviewer',
-          status: review.at ? (REVIEW_STATUS[review.status ?? ''] ?? 'warn') : overdue(review.startedAt, now) ? 'overdue' : 'running',
+          status: review.at ? (REVIEW_STATUS[review.status ?? ''] ?? 'warn') : !r.open ? 'warn' : overdue(review.startedAt, now) ? 'overdue' : 'running',
           model: review.reviewer?.model ?? null,
           provider: review.reviewer?.host ?? null,
           detail: `${review.round} · ${review.reviewer?.mode === 'cross' ? 'cross-provider' : 'subagent'}${review.at ? ` · ${review.status?.replace(/_/g, ' ')}` : ''}${review.findings.some((f) => f.confirmed) ? ` · ${review.findings.filter((f) => f.confirmed).length} blocker(s)` : ''}`,
-          since: review.at ? undefined : review.startedAt,
+          since: review.at || !r.open ? undefined : review.startedAt,
           models: stageModels(r.attempts?.find((a) => a.role === 'reviewer' && a.key === review.round)),
         },
     {
@@ -306,6 +319,7 @@ export function collect(): { generatedAt: string; projects: { name: string; root
         modeSource: r.modeSource ?? null,
         awaiting: r.awaiting ? { role: r.awaiting.role, since: r.awaiting.since, overdue: overdue(r.awaiting.since, Date.now()) } : null,
         pipeline: pipeline(r, (r.decisionIds ?? []).map((id) => byId.get(id)).find((d) => d?.point === 'D1') ?? null),
+        activity: workflowActivity(r),
         paths: r.touched.slice(0, 20),
         corrections: r.corrections ?? 0,
         usage: runUsage(r, decs.filter((d) => d.runId === r.runId || r.decisionIds?.includes(d.id))),

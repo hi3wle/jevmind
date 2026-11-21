@@ -727,11 +727,16 @@ These can be added if logs show a need.
   Requested values are never copied into observed. A model alias against a full ID is unknown. An untyped (Codex) child, or a child not bound to the attempt, stays unknown. The legacy `roleModels` is read only, for old runs.
 - **Detached reviewer:** it gets its round when spawned, launches with the request frozen at `review start`, and is claimed once by an exclusive marker file. A late or duplicate worker never touches another round.
 - **`[models]`:**
-  - `mode = off | shadow | apply`. A missing section means off.
-  - `apply` runs as shadow, and `jodex status` / `check` warn about it until P2.
-  - `[models.roles]` sets a role's level: `L0` (tester only), `L1` (default) or `L2`. A critical floor proposes `L2`.
+  - `mode = off | shadow | apply`. A missing section means off; new project configs are written with `apply`.
+  - `apply` requests native planner/tester models at launch; reviewer proposals remain shadow and reviewer/implementor launches stay unchanged. `status` / `check` explain this scope.
+  - Apply routing: planner uses Claude Opus / Codex Astra high; tester uses Codex Luna high at every risk, Claude Haiku for low/elevated and Sonnet for critical. These select the corresponding configured tiers (planner L2; tester Codex L0, Claude L0/L1). Role-level overrides still govern shadow proposals, not the apply table.
+  - Launch is a native tool handoff: Claude Agent gets `subagent_type` and `model`; Codex `spawn_agent` gets `model`, `reasoning_effort` when specified, and `fork_turns=none`. Claude has no per-call effort field, so requested effort stays null. Unsupported native arguments/models must be reported without launching an inherited fallback. Unknown hosts and empty models fail before awaiting a role. A request is not proof the host launched it; observed attribution remains evidence-based.
+  - In shadow, `[models.roles]` sets a role's level: `L0` (tester only), `L1` (default) or `L2`. A critical floor proposes `L2`.
   - `[models.claude]` and `[models.codex]` override a level's `{model, effort}`. Defaults: haiku, sonnet, opus and gpt-6-luna, gpt-6.2-sol, gpt-6.2-astra, all at effort high.
-- **Lazy collaborative run:** when Jev recommends collaborative mode (no `collab:` prefix), no run opens at prompt time. It opens and locks at the first in-repo write, or at the first shell command that is not reading, a test, a build or a `jodex` command.
+- **Lazy collaborative run:** when Jev recommends collaborative mode (no `collab:` prefix), no run opens at prompt time. It opens and locks at the first in-repo write, or at the first shell command that is not reading, a `jodex` command or exactly one of the project's configured `[checks]` commands (nothing is guessed from tool names or flags). Commands are read quote-aware: operators inside quotes neither split nor reject a command, and redirection to `/dev/null` is allowed. `sed -n N[,M]p file` counts as reading.
+- **Reviewer brief:** live host/provider acceptance and developer-only evidence are the developer's gates; the reviewer judges the code, tests and supplied evidence and does not return `insufficient_evidence` for them.
+- **`jodex doctor`** reports whether the cached Codex plugin's hooks file matches the source and whether Codex trusts every Jodex hook (after a refresh, untrusted hooks show as "Failed").
+- **Codex sandbox:** `jodex review wait` and `jodex review plan` never launch the reviewer from inside the Codex sandbox (`CODEX_SANDBOX`); they say the hook did not start it and point to `/hooks` trust.
 - **Outside the repository:**
   - Temp paths (`os.tmpdir()`, `$TMPDIR`, `/tmp`) are ignored.
   - Other outside paths are never touched files. The worker still may not write them while it waits for a role or an accepted plan.
@@ -739,7 +744,8 @@ These can be added if logs show a need.
 - **`jodex review plan`:** the worker's read-only cross review of a plan awaiting its challenge. It is written to `plan-<n>-review.md`, changes no plan decision or review round, and follows `[review] cross_provider`.
 - **Subagent replies:** a reply delivered through `SubagentHandback` is read from the subagent's transcript. An empty reply after the retry keeps the role awaited.
 - **Codex hooks** (`plugin/hooks/codex-hooks.json`) run `jodex hook` from `PATH`. After a plugin refresh, Codex 0.171.0 failed every hook that used `${CLAUDE_PLUGIN_ROOT}`, the same unexpanded placeholder as the statusline launcher. Claude Code keeps `plugin/hooks/hooks.json`. Detached reviewer workers (`review run`, `review plan-run`) name their run, so they skip the CLI's session-based run selection.
-- **CLI run selection:** `jodex check`, `review`, `plan`, `test`, `status` and `cancel` act on the run of the session mid-turn (the newest per-turn session file written in the last 30 minutes; older files are left by sessions that never stopped): its own run, else an unclaimed one, never another session's open run. With no session mid-turn, they act on the latest open run.
+- **Mode of an open run:** a later prompt's Jev recommendation does not raise the mode of an open run that already has changes (it belongs to an earlier task); an explicit `review:`/`collab:` prefix and the critical floor still do.
+- **CLI run selection:** `jodex check`, `review`, `plan`, `test`, `status` and `cancel` act on the run of the session mid-turn (under Codex, the session named by `CODEX_SESSION_ID`; otherwise the newest per-turn session file written in the last 30 minutes; older files are left by sessions that never stopped): its own run, else an unclaimed one, never another session's open run. With no session mid-turn, they act on the latest open run.
 - **Token metrics (host-reported only, never estimated; unknown is null, never 0):**
   - Where the counts come from:
     - **Claude typed subagent:** `attempt.usage`, read from its own transcript. Each message id counts once.

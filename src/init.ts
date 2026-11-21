@@ -7,7 +7,7 @@ import { configPath, jodexDir, readJson, writeJson } from './project.ts';
 const BEGIN = '<!-- jodex:begin (managed by jodex init; edit .jodex/config.toml instead) -->';
 const END = '<!-- jodex:end -->';
 const IMPORT = '@AGENTS.md';
-const IGNORE = ['.jodex/runs/', '.jodex/sessions/', '.jodex/decisions.jsonl'];
+const IGNORE = ['.jodex/runs/', '.jodex/sessions/', '.jodex/decisions.jsonl', '.jodex/calibration.jsonl'];
 
 export const AGENTS_BLOCK = `${BEGIN}
 # Jodex harness
@@ -47,7 +47,7 @@ export function planInit(root: string, jev = false): Change[] {
     const checks = detectChecks(root);
     changes.push({
       file: '.jodex/config.toml',
-      summary: `create (checks: ${Object.values(checks).join(', ') || 'none detected; add them before relying on verified'}; Jev ${jev ? 'enforce' : 'off'})`,
+      summary: `create (checks: ${Object.values(checks).join(', ') || 'none detected; add them before relying on verified'}; Jev ${jev ? 'enforce' : 'off'}). Jodex selects planner and tester models. For host defaults, set mode = "off" under [models] in .jodex/config.toml.`,
       apply: () => {
         fs.mkdirSync(jodexDir(root), { recursive: true });
         fs.writeFileSync(configPath(root), renderConfig(checks, jev));

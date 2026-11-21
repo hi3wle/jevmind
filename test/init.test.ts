@@ -20,7 +20,9 @@ test('init then uninstall restores existing files exactly', () => {
   const root = tempRepo(files);
   const changes = planInit(root);
   assert.deepEqual(changes.map((c) => c.file), ['.jodex/config.toml', 'AGENTS.md', 'CLAUDE.md', '.gitignore']);
+  assert.match(changes[0].summary, /planner and tester models.*mode = "off".*\[models\]/);
   changes.forEach((c) => c.apply());
+  assert.ok(read(root, '.gitignore')!.split('\n').includes('.jodex/calibration.jsonl'));
   assert.deepEqual(loadConfig(root).checks, { test: 'npm test', lint: 'npm run lint' });
   assert.match(read(root, 'AGENTS.md')!, /^# Team rules\n[\s\S]*jodex:begin/);
   assert.equal(planInit(root).length, 0, 'second init changes nothing');
@@ -37,6 +39,16 @@ test('init in an empty project creates files that uninstall removes', () => {
   assert.equal(read(root, 'AGENTS.md'), null);
   assert.equal(read(root, 'CLAUDE.md'), null);
   assert.equal(read(root, '.gitignore'), '');
+});
+
+test('init preserves existing model settings, including legacy configs', () => {
+  for (const config of ['[models]\nmode = "off"\n', '[models]\nmode = "shadow"\n', '[checks]\n']) {
+    const root = tempRepo({ '.jodex/config.toml': config });
+    const changes = planInit(root);
+    assert.ok(changes.every((change) => change.file !== '.jodex/config.toml'));
+    changes.forEach((change) => change.apply());
+    assert.equal(read(root, '.jodex/config.toml'), config);
+  }
 });
 
 test('check detection', () => {

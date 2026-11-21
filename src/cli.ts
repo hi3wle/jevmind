@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { jodexHome, refreshBoard, registerProject, serveBoard, writeBoard } from './board.ts';
 import { apiKey, keyFile, saveKey } from './jev.ts';
 import { calibrate } from './calibrate.ts';
-import { crossHost, launchReviewer, runPlanReview, runReviewer, waitPlanReview, waitReview } from './crossreview.ts';
+import { crossHost, inCodexSandbox, launchReviewer, planReviewFile, runPlanReview, runReviewer, waitPlanReview, waitReview } from './crossreview.ts';
 import { activeSessionId, decidePlan, reconcileSession, startPlan, startReview, startTests } from './team.ts';
 import { runChecks } from './checks.ts';
 import { type Config, loadConfig } from './config.ts';
@@ -60,14 +60,21 @@ function projectRoot(): string {
 }
 
 const warnModels = (cfg: Config, out: (s: string) => void) => {
-  if (cfg.models.mode === 'apply') out('Jodex: [models] mode = apply is not supported yet; running shadow.');
+  if (cfg.models.mode === 'apply') out('Jodex: [models] mode = apply requests planner/tester models; reviewer remains shadow.');
 };
 
 // The run of the session mid-turn (its own, else an unclaimed one); never another session's run.
 // With no session mid-turn (the developer at a terminal), the latest open run.
 const currentRun = (root: string): Run | undefined => {
-  const sid = activeSessionId(root);
-  if (sid) return findOpenRun(root, sid) ?? undefined; // session ids are uuids: the file name is the id
+  // Codex exports its session id to every command (seen live in 0.171.0); elsewhere, the newest turn file.
+  const sid = process.env.CODEX_SESSION_ID || activeSessionId(root);
+  if (sid) {
+    const run = findOpenRun(root, sid) ?? undefined; // session ids are uuids: the file name is the id
+    // An unclaimed run picked by Codex's own session id is claimed by it, so reconciling reads that
+    // session's file rather than the newest one.
+    if (run && !run.sessionId && process.env.CODEX_SESSION_ID) run.sessionId = process.env.CODEX_SESSION_ID;
+    return run;
+  }
   const run = listRuns(root).findLast((r) => r.open);
   if (run && expireAwaiting(run)) saveRun(root, run);
   return run;
@@ -139,7 +146,7 @@ async function main(argv: string[]) {
     case 'check': {
       const root = projectRoot();
       const cfg = loadConfig(root);
-      const run = currentRun(root) ?? createRun(root, null, '');
+      const run = currentRun(root) ?? createRun(root, process.env.CODEX_SESSION_ID || null, '');
       reconcileSession(root, run, cfg);
       saveRun(root, run);
       runChecks(root, cfg, run, log);
@@ -158,17 +165,23 @@ async function main(argv: string[]) {
       // Detached workers name their run: they must not depend on which session is mid-turn.
       if (cmd === 'review' && sub === 'run') return runReviewer(root, rest[1], rest[2]);
       if (cmd === 'review' && sub === 'plan-run') return runPlanReview(root, rest[1], Number(rest[2]));
-      const run = currentRun(root) ?? (cmd === 'plan' && sub === 'start' ? createRun(root, null, '') : fail('No open Jodex run; edit a file or run `jodex check` first.'));
+      const run = currentRun(root) ?? (cmd === 'plan' && sub === 'start' ? createRun(root, process.env.CODEX_SESSION_ID || null, '') : fail('No open Jodex run; edit a file or run `jodex check` first.'));
       let out: { ok: boolean; text: string };
       if (cmd === 'review' && sub === 'plan') {
         if (run.awaiting || latestPlan(run)?.decision !== null) return fail('No plan is awaiting your challenge.');
         if (!crossHost(run, cfg.review.crossProvider)) return log('Cross review is off or the other provider CLI is not installed: no plan review.');
+        const file = planReviewFile(root, run, run.plans!.length - 1);
+        if (inCodexSandbox() && !fs.existsSync(file) && !fs.existsSync(file.replace(/\.md$/, '.launch')))
+          return log('The plan review was not started: the Jodex hook did not launch it, and `jodex review plan` cannot start it inside the Codex sandbox. Check Codex /hooks trust (`jodex doctor`), then run `jodex review plan` again.');
         const text = await waitPlanReview(root, run, process.argv[1], 100 * 1000); // fits the default 2-minute Bash tool timeout
         return log(text ?? 'The plan review is still running; run `jodex review plan` again.');
       }
       // `plan start` may create the run: claim the invoking session first (request, host, mode).
       if (cmd === 'plan' && sub === 'start') reconcileSession(root, run, cfg);
       if (cmd === 'review' && sub === 'wait') {
+        const last = run.reviews?.at(-1);
+        if (inCodexSandbox() && last?.reviewer?.mode === 'cross' && !last.reviewer.launchedAt && !last.at)
+          return log('The reviewer was not started: the Jodex hook did not launch it, and `jodex review wait` cannot start it inside the Codex sandbox. Check Codex /hooks trust (`jodex doctor`), then run `jodex review wait` again.');
         launchReviewer(root, run, process.argv[1]);
         const done = await waitReview(root, run.runId, process.argv[1], 100 * 1000); // fits the default 2-minute Bash tool timeout
         const review = done?.reviews?.at(-1);

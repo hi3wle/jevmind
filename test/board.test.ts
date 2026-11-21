@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { test } from 'node:test';
 import { collect, registerProject, writeBoard } from '../src/board.ts';
+import * as board from '../src/board.ts';
 import { handleHook } from '../src/hooks.ts';
 import { tempRepo, writeConfig } from './helpers.ts';
 
@@ -43,11 +44,28 @@ test('live pipeline: each stage with its model and status; abandoned roles becom
   p = by({ ...base, open: false, reviews: [review(ago(5), ago(3), 'changes_required')], completion: { status: 'review_required', identity: '', at: '' } });
   assert.deepEqual([p.reviewer.status, p.outcome.status], ['failed', 'warn']);
   assert.equal(by({ ...base, mode: 'solo' }).reviewer.status, 'skipped');
+  p = by({ ...base, open: false, awaiting: { role: 'planner', since: ago(1) }, reviews: [review(ago(1), null, null)] });
+  assert.notEqual(p.planner.status, 'running', 'closed runs cannot retain a current awaited role');
+  assert.notEqual(p.reviewer.status, 'running', 'an unfinished historical review is not current activity');
   assert.equal(by({ ...base, agentRoles: { t1: 'tester' } }).tester.status, 'warn', 'a tester that never reported is not done');
   p = by({ ...base, agentRoles: { t1: 'tester' }, testerStartedAt: ago(3), testerDoneAt: ago(1), roleModels: { tester: 'claude-sonnet-5-5' } });
   assert.deepEqual([p.tester.status, p.tester.model], ['done', 'claude-sonnet-5-5']);
   p = by({ ...base, agentRoles: { t1: 'tester' }, testerStartedAt: ago(1), testerDoneAt: ago(3) });
   assert.equal(p.tester.status, 'warn', 'a later attempt without a result is not done by the earlier one');
+});
+
+test('workflow activity distinguishes recorded handoffs, challenge, failures and closed outcomes', () => {
+  const workflowActivity = (board as any).workflowActivity;
+  assert.equal(typeof workflowActivity, 'function', 'board must distinguish the current recorded workflow activity');
+  const base = { open: true, checks: {}, plans: [], reviews: [] } as any;
+  assert.equal(workflowActivity(base), 'Implementation / checks · last recorded activity');
+  assert.equal(workflowActivity({ ...base, awaiting: { role: 'tester' } }), 'Waiting for tester result');
+  assert.equal(workflowActivity({ ...base, plans: [{ decision: null }] }), 'Waiting for implementor to challenge the plan');
+  assert.equal(workflowActivity({ ...base, plans: [{ decision: 'blocked' }] }), 'Plan blocked · developer action required');
+  assert.equal(workflowActivity({ ...base, reviews: [{ status: 'changes_required' }] }), 'Correction required · reviewer found blockers');
+  assert.equal(workflowActivity({ ...base, checks: { test: { exitCode: 1 } } }), 'Checks failed · last recorded results');
+  assert.equal(workflowActivity({ ...base, reviews: [{ status: 'no_blocking_findings' }] }), 'Review complete · waiting for completion gate');
+  assert.equal(workflowActivity({ ...base, open: false, awaiting: { role: 'tester' }, completion: { status: 'review_required' } }), 'Closed · review required');
 });
 
 test('run usage: n/a for unused roles, null and partial for unknown ones, known-only total', async () => {
@@ -88,7 +106,7 @@ test('live server: page, data, change events, and Host check', async () => {
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   try {
     assert.ok(Array.isArray((await (await fetch(`${url}/data`)).json()).runs));
-    assert.match(await (await fetch(`${url}/?range=15m`)).text(), /Run<\/span><span>Decision/);
+    assert.match(await (await fetch(`${url}/?range=15m`)).text(), /aria-label="Live workflows"/);
     assert.equal((await fetch(`${url}/other`)).status, 404);
     const rebound = await new Promise<number>((ok) => http.get(`${url}/data`, { headers: { host: 'evil.example:80' } }, (r) => ok(r.statusCode!)));
     assert.equal(rebound, 403, 'foreign Host header is refused');

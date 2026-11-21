@@ -1,8 +1,10 @@
 // Regressions for the findings of Codex's cross review of the harness (2026-11-21).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { runChecks } from '../src/checks.ts';
 import { loadConfig } from '../src/config.ts';
 import { decideIntake } from '../src/decisions.ts';
@@ -56,6 +58,7 @@ test('3, 4: the worker shell cannot write while locked, and no agent can accept'
   assert.deepEqual(await handleHook(bash(root, 'jodex status')), {});
   assert.deepEqual(await handleHook(bash(root, 'git status')), {});
   assert.ok(denied(await handleHook(bash(root, 'jodex accept'))));
+  assert.ok(denied(await handleHook(bash(root, 'bash -c "jodex accept"'))), 'quoting does not hide a developer-only command');
 });
 
 test('5: a shell edit made before `review start` is in the review scope; a later one makes it stale', async () => {
@@ -178,8 +181,68 @@ test('locked worker: decorated workflow commands pass, file writes do not', asyn
   const { allowedWhileLocked } = await import('../src/hooks.ts');
   for (const c of ['jodex review wait 2>&1; echo "exit=$?"', 'jodex check 2>&1 | tail -6', 'jodex review wait 2>&1 | head -30', 'git status | head'])
     assert.equal(allowedWhileLocked(c), true, c);
+  // Observed denies from the MR retrospective: quoted operators and /dev/null are not writes.
+  for (const c of ['cat x 2>/dev/null | head', 'jodex status | grep -E "plan|Next"', 'sed -n 1,60p file', 'jodex plan revise "reason with ; or /tmp"', 'jodex review wait 2>/dev/null'])
+    assert.equal(allowedWhileLocked(c), true, c);
   for (const c of ['jodex check > out.txt', 'jodex status; echo x > src/a.js', 'jodex check && $(rm -rf src)', 'npm test', 'jodex accept'])
     assert.equal(allowedWhileLocked(c), false, c);
+  const quotedOrSed = ['jodex status | grep "$(rm x)"', "echo 'a' > f", 'grep "unterminated', 'jodex status & touch x', 'jodex status | grep "`rm x`"'];
+  for (const c of [...quotedOrSed, 'sed -n -i 1,60p f', "sed -n '1w o' f", 'sed -n 1,60p -i f']) assert.equal(allowedWhileLocked(c), false, c);
+});
+
+test('read-only: quoted alternation and line-range sed print are read-only', () => {
+  for (const c of ['grep -E "a|b" src', 'sed -n 1,60p src/a.js', "sed -n '5p' src/a.js"]) assert.equal(isReadOnlyCommand(c), true, c);
+  for (const c of ['sed -n -i 1,60p f', "sed -n '1w o' f", 'sed -n 1,60p -i f', 'sed -n 1,60p', 'grep "a" src > out', 'grep "$(rm x)" src']) assert.equal(isReadOnlyCommand(c), false, c);
+});
+
+test('R0 blocker: an escaped quote outside quotes opens no quote, so the `;` still chains', async () => {
+  const { allowedWhileLocked } = await import('../src/hooks.ts');
+  const c = "cat \\'x; touch y\\'"; // the shell runs `cat 'x` then `touch y'`
+  assert.equal(allowedWhileLocked(c), false, c);
+  assert.equal(isReadOnlyCommand(c), false, c);
+});
+
+test('R1 blocker: ANSI-C and locale quoting outside quotes are denied; a quoted `$` is not', async () => {
+  const { allowedWhileLocked } = await import('../src/hooks.ts');
+  for (const c of ["jodex status $'\\''; touch src/x # '", 'jodex status $"x"; touch y']) {
+    assert.equal(allowedWhileLocked(c), false, c);
+    assert.equal(isReadOnlyCommand(c), false, c);
+  }
+  assert.equal(isReadOnlyCommand("grep '$x' src"), true);
+  assert.equal(allowedWhileLocked("grep '$x' src"), true);
+});
+
+test('doctor: Codex hooks cache and trust state are read from CODEX_HOME', async () => {
+  const { codexHooksState } = await import('../src/setup.ts');
+  const plugin = fileURLToPath(new URL('../plugin', import.meta.url));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'codexhome-'));
+  const saved = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = home;
+  try {
+    assert.equal(codexHooksState(), 'plugin not cached (run jodex setup)');
+    const cache = path.join(home, 'plugins/cache/jodex/jodex/0.1.0');
+    for (const f of ['.codex-plugin/plugin.json', 'hooks/codex-hooks.json']) {
+      fs.mkdirSync(path.dirname(path.join(cache, f)), { recursive: true });
+      fs.copyFileSync(path.join(plugin, f), path.join(cache, f));
+    }
+    const key = (e: string) => `"jodex@jodex:hooks/codex-hooks.json:${e}:0:0" = { trusted_hash = "sha256:x" }`;
+    const toml = (events: string[]) => fs.writeFileSync(path.join(home, 'config.toml'), `model = "x"\n[hooks.state]\n${events.map(key).join('\n')}\n`);
+    toml(['user_prompt_submit', 'pre_tool_use', 'stop']);
+    assert.equal(codexHooksState(), 'not trusted: subagent_stop; open codex, run /hooks and trust Jodex');
+    toml(['user_prompt_submit', 'pre_tool_use', 'subagent_stop', 'stop']);
+    assert.equal(codexHooksState(), 'trusted 4/4 (hooks/codex-hooks.json)');
+    fs.appendFileSync(path.join(cache, 'hooks/codex-hooks.json'), '\n');
+    assert.match(codexHooksState(), /^cached hooks\/codex-hooks\.json differs from source/);
+  } finally {
+    if (saved === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = saved;
+  }
+});
+
+test('reviewer brief: live acceptance and developer-only evidence are not insufficient_evidence', async () => {
+  const root = repo();
+  const r = await reviewing(root);
+  assert.match(fs.readFileSync(path.join(root, r.reviews!.at(-1)!.briefFile!), 'utf8'), /Live host\/provider acceptance checks and developer-only evidence .* do not return insufficient_evidence for them/);
 });
 
 test('R2: --textc, symlink vs file identity, legacy acceptance', () => {
