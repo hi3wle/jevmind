@@ -1,0 +1,8 @@
+{
+  "createdAgents": false,
+  "createdClaude": true,
+  "addedImport": false,
+  "addedIgnore": [
+    ".jodex/decisions.jsonl"
+  ]
+}

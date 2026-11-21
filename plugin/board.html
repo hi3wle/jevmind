@@ -29,7 +29,7 @@ aside{border-right:1px solid var(--line);padding:18px 8px;display:flex;flex-dire
 .label{font-size:11px;letter-spacing:.12em;color:var(--faint);padding:0 8px 8px;text-transform:uppercase}
 .proj{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;color:var(--muted);cursor:pointer;font-size:13px}
 .proj:hover{background:var(--track)}.proj.on{background:var(--track);color:var(--text)}
-.proj .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}.proj .n{margin-left:auto;font:12px var(--mono);color:var(--faint)}
+.proj .dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ok)}.proj .n{margin-left:auto;font:12px var(--mono);color:var(--faint)}
 .foot{margin-top:auto;border-top:1px solid var(--line);padding:12px 8px 0;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--faint)}
 .foot button{background:none;border:1px solid var(--line2);color:var(--muted);border-radius:6px;padding:4px 8px;cursor:pointer}
 main{padding:28px 32px 40px;max-width:1240px;width:100%;margin:0 auto}
@@ -84,6 +84,19 @@ td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
 .cal .box{border:1px solid var(--line);border-radius:10px;padding:12px}.cal .box .k{font-size:11.5px;color:var(--muted)}.cal .box .v{font:500 22px var(--mono);margin-top:4px}.cal .box .h{font-size:11px;color:var(--faint)}
 @media (max-width:900px){.cal{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .note{color:var(--faint);font-size:11.5px;margin-top:22px}
+.proj .lab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.proj .dot.idle{background:var(--faint)}
+.live{margin-bottom:14px;padding:18px 20px}.live .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.live .on{display:inline-flex;align-items:center;gap:7px;font-weight:600}.live .on i{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.live .on.yes i{background:var(--ok);box-shadow:0 0 0 3px var(--okbg)}.live .nums{font-size:12px;color:var(--muted)}.live .nums b{color:var(--text);font-family:var(--mono)}
+.lmhead,.lmrow{display:grid;grid-template-columns:minmax(0,1fr) 90px minmax(0,1fr) 90px minmax(0,1.3fr);align-items:center}
+.lmhead{font-size:11px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase;margin:16px 0 6px}.lmhead span:nth-child(even){visibility:hidden}
+.lmrow{margin:10px 0}.box2{border:1px solid var(--line2);border-radius:10px;padding:10px 12px;background:var(--panel);min-width:0}
+.box2 .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.box2 .m{color:var(--muted);font-size:12px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rib{width:100%;height:34px;display:block}
+.stages{display:flex;gap:3px;margin-top:8px}.stages i{flex:1;height:9px;border-radius:2px;border:1px solid var(--line2)}
+.stages i.done{background:var(--ok);border-color:var(--ok)}.stages i.now{background:var(--info);border-color:var(--info);animation:pulse 1.4s infinite}
+@keyframes pulse{50%{opacity:.4}}
+@media (max-width:900px){.lmhead{display:none}.lmrow{grid-template-columns:1fr;gap:6px}.rib{display:none}}
 .empty{color:var(--muted);padding:30px 0;text-align:center}
 @media (max-width:900px){.app{grid-template-columns:1fr}aside{display:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2{grid-template-columns:1fr}main{padding:20px 16px}.search{width:100%}}
 </style>
@@ -94,6 +107,8 @@ td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
     <div class="brand"><i></i>jodex</div>
     <div class="label">Projects</div>
     <div id="projects"></div>
+    <div class="label" style="margin-top:18px">Sessions</div>
+    <div id="sessions"></div>
     <div class="foot"><span>Local board<br><span id="gen"></span></span><button id="theme" title="Toggle theme">◐</button></div>
   </aside>
   <main>
@@ -101,6 +116,15 @@ td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
     <div class="head">
       <div><h1 id="title"></h1><div class="sub" id="subtitle"></div></div>
       <div class="seg" id="range"><button data-d="7">7d</button><button data-d="30" class="on">30d</button><button data-d="90">90d</button><button data-d="0">All</button></div>
+    </div>
+    <div class="card live">
+      <div class="top">
+        <div><span class="on" id="liveOn"><i></i>Live map</span> <span class="meta" id="liveSub"></span></div>
+        <div class="nums" id="liveNums"></div>
+      </div>
+      <div class="lmhead"><span>Session</span><span></span><span>Routing</span><span></span><span>Stage · who works now</span></div>
+      <div id="lm"></div>
+      <div class="legend"><span><i style="background:var(--faint)"></i>Routed by file rules or prefix</span><span><i style="background:var(--accent)"></i>Routed by Jev</span><span><i style="background:var(--ok)"></i>Stage done</span><span><i style="background:var(--info)"></i>Current stage</span><span>Moving dot: hook activity in the last 2 min. Recorded state only; it does not prove a process is running.</span></div>
     </div>
     <div class="kpis" id="kpis"></div>
     <div class="card main">
@@ -146,13 +170,14 @@ td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
   </main>
 </div>
 <script>
-const DATA = /*__DATA__*/null || { generatedAt: new Date().toISOString(), projects: [], runs: [] };
+let DATA = /*__DATA__*/null || { generatedAt: new Date().toISOString(), projects: [], runs: [] };
+const LIVE = location.protocol.startsWith('http');
 const STATUS = [
   ['verified', 'Verified', 'var(--ok)'], ['review_required', 'Review required', 'var(--warn)'],
   ['failed_verification', 'Failed verification', 'var(--bad)'], ['blocked', 'Blocked', 'var(--accent)'], ['in_progress', 'In progress', 'var(--info)'],
 ];
 const RISK = [['low', 'Low', 'var(--none)'], ['elevated', 'Elevated', 'var(--warn)'], ['critical', 'Critical', 'var(--bad)']];
-const state = { project: null, days: 30, metric: 'runs', q: '' };
+const state = { project: null, session: null, days: 30, metric: 'runs', q: '' };
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
@@ -171,7 +196,7 @@ $('theme').onclick = () => {
 
 function scoped() {
   const since = state.days ? Date.now() - state.days * 864e5 : 0;
-  return DATA.runs.filter((r) => (!state.project || r.project === state.project) && new Date(r.createdAt) >= since);
+  return DATA.runs.filter((r) => (!state.project || r.project === state.project) && (!state.session || r.sessionId === state.session) && new Date(r.createdAt) >= since);
 }
 
 function days() {
@@ -191,21 +216,88 @@ function renderSidebar() {
     const d = el('div', 'proj' + (state.project === value ? ' on' : ''));
     if (value) d.append(el('span', 'dot'));
     d.append(el('span', null, name), el('span', 'n', String(count)));
-    d.onclick = () => { state.project = value; render(); };
+    d.onclick = () => { state.project = value; state.session = null; render(); };
     box.append(d);
   };
   add('All projects', DATA.runs.length, null);
   for (const p of DATA.projects) add(p.name, DATA.runs.filter((r) => r.project === p.name).length, p.name);
+  const sbox = $('sessions'); sbox.replaceChildren();
+  for (const s of sessions().slice(0, 15)) {
+    const d = el('div', 'proj' + (state.session === s.id ? ' on' : ''));
+    d.title = `${s.project} · ${s.host || 'cli'} · ${s.label}`;
+    d.append(el('span', 'dot' + (s.active ? '' : ' idle')), el('span', 'lab', s.label), el('span', 'n', String(s.runs.length)));
+    d.onclick = () => { state.session = state.session === s.id ? null : s.id; render(); };
+    sbox.append(d);
+  }
+  if (!sbox.children.length) sbox.append(el('div', 'meta', 'No agent sessions yet'));
+}
+
+const ACTIVE_MS = 120e3;
+const active = (r) => r.open && Date.now() - new Date(r.updatedAt) < ACTIVE_MS;
+// Sessions are the host conversations that opened runs; latest activity first.
+function sessions() {
+  const by = new Map();
+  for (const r of DATA.runs) {
+    if (!r.sessionId || (state.project && r.project !== state.project)) continue;
+    const s = by.get(r.sessionId) || { id: r.sessionId, project: r.project, host: r.host, runs: [] };
+    s.runs.push(r); by.set(r.sessionId, s);
+  }
+  return [...by.values()].map((s) => {
+    const last = s.runs.reduce((a, r) => (r.updatedAt > a.updatedAt ? r : a));
+    return { ...s, last: last.updatedAt, active: s.runs.some(active), label: `${s.host === 'codex' ? 'Codex' : s.host === 'claude-code' ? 'Claude' : 'CLI'} · ${last.request || last.runId}` };
+  }).sort((a, b) => b.last.localeCompare(a.last));
+}
+
+const STAGE_NAMES = ['intake', 'plan', 'implement', 'test', 'check', 'review', 'fix', 'done'];
+const hostName = (h) => (h === 'codex' ? 'Codex' : h === 'claude-code' ? 'Claude' : 'CLI');
+function ribbon(color, moving) {
+  const d = 'M0,17 C45,17 45,17 90,17';
+  return `<svg class="rib" viewBox="0 0 90 34" preserveAspectRatio="none"><path d="${d}" stroke="${color}" stroke-width="10" fill="none" opacity=".55"/>${moving ? `<circle r="3.5" fill="var(--text)"><animateMotion dur="1.6s" repeatCount="indefinite" path="${d}"/></circle>` : ''}</svg>`;
+}
+function box(name, meta, extra) {
+  const b = el('div', 'box2'); b.append(el('div', 'n', name));
+  if (meta != null) b.append(el('div', 'm', meta));
+  if (extra) b.append(extra);
+  return b;
+}
+function renderLive() {
+  const open = DATA.runs.filter((r) => r.open && (!state.project || r.project === state.project) && (!state.session || r.sessionId === state.session))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  $('liveOn').classList.toggle('yes', LIVE);
+  $('liveSub').textContent = LIVE ? `updated ${new Date(DATA.generatedAt).toLocaleTimeString()}` : 'snapshot: run `jodex board --live` for real time';
+  const waiting = open.filter((r) => r.awaiting).length;
+  $('liveNums').innerHTML = `<b>${open.length}</b> open · <b>${open.filter(active).length}</b> active · <b>${waiting}</b> waiting on a role`;
+  const lm = $('lm'); lm.replaceChildren();
+  if (!open.length) { lm.append(el('div', 'empty', 'No open runs. Give an agent a task in an initialized project and it shows up here.')); return; }
+  for (const r of open) {
+    const row = el('div', 'lmrow'), moving = active(r), color = r.modeSource === 'jev' ? 'var(--accent)' : 'var(--faint)';
+    row.append(box(`${hostName(r.host)}${r.model ? ` · ${r.model}` : ''}`, `${r.project} · ${r.request || '(started by jodex check)'}`));
+    row.insertAdjacentHTML('beforeend', ribbon(color, moving));
+    const why = el('div', 'm'); why.append(el('span', `r-${r.risk}`, `risk ${r.risk}`), ` · by ${r.modeSource || 'rule'}${r.jevRaised ? ' · raised by Jev' : ''}`);
+    row.append(box(`${r.mode}${r.jevModel ? ` · ${r.jevModel}` : ''}`, null, why));
+    row.insertAdjacentHTML('beforeend', ribbon(color, moving));
+    const who = r.awaiting
+      ? `${r.awaiting.role}${r.awaiting.reviewer ? ` · ${r.awaiting.reviewer.replace('claude-code', 'Claude').replace('codex', 'Codex')}` : ''} · waiting ${fmtDur(Date.now() - new Date(r.awaiting.since))}${Date.now() - new Date(r.awaiting.since) > 30 * 60e3 ? ' · overdue' : ''}`
+      : `worker · ${hostName(r.host)} · ${r.files} file${r.files === 1 ? '' : 's'}${r.checks.length ? ' · ' + r.checks.map((c) => `${c.exitCode === 0 ? '✓' : '✗'}${c.name}`).join(' ') : ''}`;
+    const st = el('div', 'stages'), at = STAGE_NAMES.indexOf(r.stage);
+    STAGE_NAMES.forEach((s, i) => { const c = el('i', i === at ? 'now' : r.seen.includes(s) ? 'done' : ''); c.title = i === at ? `${s} (now)` : r.seen.includes(s) ? `${s}: recorded` : `${s}: not recorded`; st.append(c); });
+    const b = box(`${r.stage}`, `${who} · last activity ${fmtDur(Date.now() - new Date(r.updatedAt))} ago`, st);
+    b.title = r.paths.join('\n');
+    row.append(b);
+    lm.append(row);
+  }
 }
 
 function render() {
   const runs = scoped(), ds = days();
-  const title = state.project || 'All projects';
+  const ses = state.session && sessions().find((s) => s.id === state.session);
+  const title = ses ? ses.label : state.project || 'All projects';
   $('crumb').textContent = title; $('title').textContent = title;
   const first = runs.length ? runs.reduce((a, r) => (r.createdAt < a ? r.createdAt : a), runs[0].createdAt) : null;
   $('subtitle').textContent = runs.length ? `${runs.length} run${runs.length > 1 ? 's' : ''} since ${new Date(first).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No runs in this range';
   $('gen').textContent = new Date(DATA.generatedAt).toLocaleString();
   renderSidebar();
+  renderLive();
 
   const perDay = (f) => ds.map((d) => runs.filter((r) => dayKey(r.createdAt) === d).reduce((s, r) => s + f(r), 0));
   const finished = runs.filter((r) => r.status !== 'in_progress');
@@ -311,7 +403,7 @@ function bars(box, defs, runs, key) {
 function renderSide(runs) {
   bars($('statusBars'), STATUS, runs, 'status');
   bars($('riskBars'), RISK, runs, 'risk');
-  const all = DATA.runs.filter((r) => !state.project || r.project === state.project);
+  const all = DATA.runs.filter((r) => (!state.project || r.project === state.project) && (!state.session || r.sessionId === state.session));
   const heat = $('heat'); heat.replaceChildren();
   const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - start.getDay() - 77);
   const counts = {}; for (const r of all) counts[dayKey(r.createdAt)] = (counts[dayKey(r.createdAt)] || 0) + 1;
@@ -351,7 +443,7 @@ function pbar(p, threshold) {
 }
 function scopedDecisions() {
   const since = state.days ? Date.now() - state.days * 864e5 : 0;
-  return (DATA.decisions || []).filter((d) => (!state.project || d.project === state.project) && new Date(d.ts) >= since);
+  return (DATA.decisions || []).filter((d) => (!state.project || d.project === state.project) && (!state.session || d.sessionId === state.session) && new Date(d.ts) >= since);
 }
 function renderDecisions() {
   const every = scopedDecisions(), all = every.filter((d) => (d.point || 'D1') === 'D1'), jevd = all.filter((d) => d.source === 'jev');
@@ -429,7 +521,7 @@ function renderCalibration() {
   $('calwrap').hidden = !list.length;
   const box = $('calib'); box.replaceChildren();
   for (const c of list) {
-    const head = el('div'); head.append(el('b', null, c.project), ` · ${fmtDate(c.ts)}${c.auto ? ' · automatic' : ''} · risk cut in use ${c.raiseRiskInUse}${c.applied ? ` (moved from ${c.raiseRisk.current})` : ''}. ${c.raiseRisk.proposed === null ? c.raiseRisk.reason : `Best cut ${c.raiseRisk.proposed}, balanced accuracy ${c.raiseRisk.balancedAccuracy}.`}`);
+    const head = el('div'); head.append(el('b', null, c.project), `${state.session ? ' (whole project, not this session)' : ''} ·${fmtDate(c.ts)}${c.auto ? ' · automatic' : ''} · risk cut in use ${c.raiseRiskInUse}${c.applied ? ` (moved from ${c.raiseRisk.current})` : ''}. ${c.raiseRisk.proposed === null ? c.raiseRisk.reason : `Best cut ${c.raiseRisk.proposed}, balanced accuracy ${c.raiseRisk.balancedAccuracy}.`}`);
     box.append(head);
     for (const s of c.signals) {
       const line = el('div', 'meta', `${s.signal}: ${s.n} labeled, ${s.positives} positive (${s.label})${s.brier !== null ? `, Brier ${s.brier}` : ''}${s.reliability.length ? ' · ' + s.reliability.map((b) => `p ${b.band}: predicted ${b.predicted} / observed ${b.observed} (n ${b.n})`).join(' · ') : ''}`);
@@ -462,6 +554,8 @@ for (const b of $('range').querySelectorAll('button')) b.onclick = () => { state
 for (const b of $('metric').querySelectorAll('button')) b.onclick = () => { state.metric = b.dataset.m; $('metric').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); render(); };
 $('search').oninput = (e) => { state.q = e.target.value; renderTable(scoped()); };
 render();
+// Live mode: refresh the data every 2 s; the page itself stays as is (filters, search, theme).
+if (LIVE) setInterval(async () => { try { DATA = await (await fetch('/data', { cache: 'no-store' })).json(); render(); } catch {} }, 2000);
 </script>
 </body>
 </html>

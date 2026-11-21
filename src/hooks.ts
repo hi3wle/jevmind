@@ -10,7 +10,7 @@ import { createRun, evaluate, type Role, findOpenRun, formatStatus, latestReview
 import { maybeAutoCalibrate } from './calibrate.ts';
 import { gateCommand } from './commands.ts';
 import { launchReviewer } from './crossreview.ts';
-import { isReadOnlyCommand, isTestPath, READ_TOOLS, recordBase, recordSubagent, SHELL_WRITES } from './team.ts';
+import { isReadOnlyCommand, isTestPath, READ_TOOLS, recordBase, recordSubagent, rememberPrompt, SHELL_WRITES } from './team.ts';
 
 // Hook input shared by Claude Code and Codex (verified in M0).
 export type HookEvent = {
@@ -31,7 +31,7 @@ export type HookEvent = {
 
 const hostOf = (ev: HookEvent) => (ev.turn_id ? 'codex' : 'claude-code');
 
-type Session = { lastPrompt: string; baseline: Manifest | null; decisionId?: string | null; jevRiskFloor?: RiskFloor | null; mode?: Mode; modeSource?: string };
+type Session = { host?: string; model?: string | null; lastPrompt: string; baseline: Manifest | null; decisionId?: string | null; jevRiskFloor?: RiskFloor | null; mode?: Mode; modeSource?: string };
 const sessionsDir = (root: string) => path.join(jodexDir(root), 'sessions');
 const sessionFile = (root: string, id: string) => path.join(sessionsDir(root), `${id.replace(/[^\w-]/g, '_')}.json`);
 const readSession = (root: string, id: string) => readJson<Session | null>(sessionFile(root, id), null);
@@ -83,7 +83,8 @@ async function onPrompt(root: string, ev: HookEvent) {
   pruneSessions(root);
   const cfg = loadConfig(root);
   // Baseline for every prompt: shell edits never reach PreToolUse, so Stop diffs against it.
-  const session: Session = { lastPrompt: prompt, baseline: manifest(root) };
+  const session: Session = { host: hostOf(ev), model: ev.model ?? claudeModel(ev.transcript_path), lastPrompt: prompt, baseline: manifest(root) };
+  rememberPrompt(root, ev.session_id, prompt);
   let context = CONTEXT;
   const override = prompt.match(OVERRIDE)?.[1].toLowerCase();
   if (override && override !== 'solo') [session.mode, session.modeSource] = [override.startsWith('collab') ? 'collaborative' : 'review', 'override'];

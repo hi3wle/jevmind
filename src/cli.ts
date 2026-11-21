@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
-import { jodexHome, refreshBoard, registerProject, writeBoard } from './board.ts';
+import { jodexHome, refreshBoard, registerProject, serveBoard, writeBoard } from './board.ts';
 import { apiKey, keyFile, saveKey } from './jev.ts';
 import { calibrate } from './calibrate.ts';
 import { launchReviewer, runReviewer, waitReview } from './crossreview.ts';
@@ -24,8 +24,9 @@ const HELP = `jodex — adaptive coding harness
   jodex init [--yes] [--jev]  enable Jodex in the current git project (--jev: enable Jev decisions)
   jodex key                   store the TypeSafe API key read from stdin (~/.jodex/typesafe.key, mode 600)
   jodex check                 run the project's checks and print the run status
-  jodex review start [--same-host]
-                              open an independent review round (the other provider by default)
+  jodex review start [--same-host] [--evidence <file>]...
+                              open an independent review round (the other provider by default);
+                              --evidence attaches a screenshot or log from the project or a temp dir
   jodex review wait           wait for the review result and print the status
   jodex plan start            ask a planner subagent for a plan (collaborative mode)
   jodex plan accept|revise|block [reason]
@@ -38,6 +39,8 @@ const HELP = `jodex — adaptive coding harness
   jodex discard [run]         close a test or abandoned run; calibration ignores it
   jodex calibrate [--apply]   reliability of Jev's probabilities against outcomes; --apply moves the risk cut
   jodex board [--open]        write the local dashboard (~/.jodex/board/board.html)
+  jodex board --live [--port N] [--open]
+                              serve it on localhost with the live map of running sessions
   jodex doctor                show what is installed and supported
   jodex uninstall [--statusline | --project [--purge]]
                               remove Jodex from this machine, or from the current project
@@ -154,7 +157,10 @@ async function main(argv: string[]) {
         for (const f of review.findings) log(`  [${f.severity}${f.severity === 'blocking' ? (f.confirmed ? ', confirmed' : ', disputed by Jev') : ''}] ${f.location}: ${f.issue}`);
         return log(formatStatus(done, evaluate(done, cfg, sourceIdentity(root))));
       }
-      if (cmd === 'review' && sub === 'start') out = startReview(root, run, cfg, flag('--same-host'));
+      if (cmd === 'review' && sub === 'start') {
+        if (rest.at(-1) === '--evidence') fail('--evidence needs a file path.');
+        out = startReview(root, run, cfg, flag('--same-host'), rest.flatMap((a, i) => (rest[i - 1] === '--evidence' ? [a] : [])));
+      }
       else if (cmd === 'test' && sub === 'start') out = startTests(root, run);
       else if (cmd === 'plan' && sub === 'start') out = startPlan(root, run);
       else if (cmd === 'plan' && ['accept', 'revise', 'block'].includes(sub)) out = { ok: true, text: decidePlan(run, sub === 'block' ? 'blocked' : (sub as 'accept' | 'revise'), rest.slice(1).join(' ')) };
@@ -223,6 +229,14 @@ async function main(argv: string[]) {
       return;
     }
     case 'board': {
+      if (flag('--live')) {
+        const i = rest.indexOf('--port');
+        const server = await serveBoard(i >= 0 ? Number(rest[i + 1]) : 4317);
+        const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`;
+        log(`Live board at ${url} (Ctrl+C to stop)`);
+        if (flag('--open')) spawnSync(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], { stdio: 'ignore' });
+        return new Promise(() => {});
+      }
       const file = writeBoard();
       log(file);
       if (flag('--open')) spawnSync(process.platform === 'darwin' ? 'open' : 'xdg-open', [file], { stdio: 'ignore' });

@@ -1,0 +1,202 @@
+{
+  "kind": "native-codex-statusline-registration-correction",
+  "recordedAt": "2026-11-20T23:54:14.205858+00:00",
+  "rootCause": "Installed Codex0.171 legacy plugin MCP loader leaves plugin-root argv placeholders literal; provider process exits before MCP handshake.",
+  "fix": "Use existing setup-installed jodex command through PATH, args statusline --mcp.",
+  "checks": [
+    {
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exit": 0,
+      "stdout": "\n> jodex@0.1.0 test\n> node --test test/*.test.ts\n\n✔ board lists registered projects and escapes request text (217.357833ms)\n✔ cut proposal needs enough labels of both kinds, then maximizes balanced accuracy (1.465708ms)\n✔ calibrate --apply moves the risk cut, logs it, and the config clamps it (211.648375ms)\n✔ automatic calibration runs once per 10 closed runs (113.141459ms)\n✔ discarded runs and their decisions are left out of calibration (130.461083ms)\n✔ D2 rules (5.327375ms)\n✔ D2 hook: rules deny without Jev, routine skips Jev, Jev decides the rest once per run (261.189667ms)\n✔ completion precedence (9.900625ms)\n✔ risk floor from globs (0.427667ms)\n✔ write paths from Claude tools and Codex patches (0.511791ms)\n✔ identity covers untracked files and ignores .jodex (231.371833ms)\n✔ identity works when .git is read-only (Codex workspace-write sandbox) (146.385541ms)\n✔ checks bind to the source they ran on (155.408291ms)\n✔ claude-code work is reviewed by codex (758.277916ms)\n✔ codex work is reviewed by claude-code (714.950959ms)\n✔ uninitialized project: every hook is a no-op (157.499333ms)\n✔ question-only prompt: context injected, no run, stop allowed (151.01125ms)\n✔ task notification prompt is ignored (104.486917ms)\n✔ write creates a run; .jodex writes are denied (145.216416ms)\n✔ stop gate: blocks once, never loops, closes a reported verified run (217.213042ms)\n✔ shell-only edits are caught at stop through the prompt baseline (121.552083ms)\n✔ critical path keeps the run at review_required (101.01675ms)\n✔ shell edit to a critical path after `jodex check` still counts as critical (138.344792ms)\n✔ a reported status closes the run once only the developer can act; the next task starts fresh (330.219708ms)\n✔ the status must be the last line: an earlier quoted status does not count (134.192125ms)\n✔ managed block round-trips and replaces in place (0.449333ms)\n✔ init then uninstall restores existing files exactly (138.997459ms)\n✔ init in an empty project creates files that uninstall removes (86.097916ms)\n✔ check detection (204.759833ms)\n✔ D1 policy: thresholds, and Jev can only tighten (1.982875ms)\n✔ redaction removes common secrets (2.506958ms)\n✔ enforce: Jev raises risk and asks to clarify; decision is logged and linked to the run (135.011ms)\n✔ shadow logs without acting; failures fall back to rules (171.638375ms)\n✔ session file is removed once the turn ends (128.961792ms)\n✔ Claude model is read from the last assistant transcript entry (1.67525ms)\n✔ the declared Codex footer transport starts from PATH without plugin-root expansion (478.256125ms)\n✔ status footer uses only the displayed project and session and does not mutate state (272.013541ms)\n✔ decision footer distinguishes Jev, fallback, disabled and lack of consent (119.043125ms)\n✔ isolated Claude settings retain edits, file modes and a private backup (377.032667ms)\n✔ MCP responds after errors, routes each thread, and does not emit notification replies (213.036375ms)\n✔ Claude footer binds the displayed session, reports waiting honestly and never leaks request text (238.920125ms)\n✔ MCP footer advertises the native entrypoint and renders the displayed thread (198.054542ms)\n✔ explicit footer setup preserves developer settings and removes only its own footer (358.525958ms)\n✔ footer setup refuses a linked settings file instead of replacing the developer link (114.95425ms)\n✔ ReviewResult parsing and invariants (2.661958ms)\n✔ review mode: R0 blocks, one correction, fresh R1 verifies (420.17975ms)\n✔ correction budget: a second blocking round stops further edits (299.444333ms)\n✔ D4: a blocker Jev does not confirm goes to the developer (177.010208ms)\n✔ collaborative: plan first, same worker challenges, one revision (139.916166ms)\n✔ tester may write only test files (82.345458ms)\n✔ review packet covers only this run; other uncommitted work is context (110.57ms)\n✔ review diff shows only this run's edits to a file that already had uncommitted changes (121.507375ms)\n✔ a reported status keeps the run open while the agent still has a step (101.533291ms)\n✔ read-only roles: shell bypasses are denied (0.266917ms)\n✔ Codex: a helper subagent finishing first is ignored, the real reviewer is recorded (122.953417ms)\n✔ a subagent that never reports stops blocking after the timeout or `cancel` (104.200083ms)\n✔ a blocker fixed through the shell still opens R1, and counts the correction (137.979ms)\n✔ tester shell edits to production files are caught when it stops (87.376708ms)\n✔ 1: quoted or abbreviated write flags are not read-only (0.760792ms)\n✔ 2: a reviewer stays read-only after it is no longer awaited (183.584958ms)\n✔ 3, 4: the worker shell cannot write while locked, and no agent can accept (223.011584ms)\n✔ 5: a shell edit made before `review start` is in the review scope; a later one makes it stale (156.527041ms)\n✔ 7, 8: secrets in check commands and Basic auth are not sent (0.873583ms)\n✔ 9: changing a check command makes its evidence stale (66.469ms)\n✔ 11: disputed blockers are not washed away by another review on unchanged source (178.644292ms)\n✔ 12, 14: acceptance clears tester scope; a failing check outranks a blocked plan (93.966208ms)\n✔ 13: the risk raise uses P(elevated)+P(critical), the quantity calibration tunes (0.232042ms)\n✔ R1: brace expansion and textconv are not read-only (0.109875ms)\n✔ R1: agents cannot uninstall or accept, even quoted (126.1325ms)\n✔ R1: helper subagents and the tester shell cannot write in team mode (98.245208ms)\n✔ R1: a run opened by `jodex check` reviews the newest session's shell edits (103.831416ms)\n✔ R1: disputed blockers persist across rounds until the developer accepts this source (147.403833ms)\n✔ R1: a check named \"plan\" still outranks a blocked plan (49.529541ms)\n✔ R1: quoted Authorization and secret env values are redacted (0.239791ms)\n✔ locked worker: decorated workflow commands pass, file writes do not (0.175458ms)\n✔ R2: --textc, symlink vs file identity, legacy acceptance (56.860583ms)\n✔ R3: a cancelled reviewer stays a reviewer when a tester stage starts; late D4 results are dropped (116.574167ms)\nℹ tests 77\nℹ suites 0\nℹ pass 77\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 2731.214292\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "stdout": "\n> jodex@0.1.0 typecheck\n> tsc --noEmit\n\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "stdout": "\n> jodex@0.1.0 build\n> esbuild src/cli.ts --bundle --platform=node --format=esm --target=node22 --outfile=plugin/dist/jodex.mjs --banner:js=\"#!/usr/bin/env node\" && chmod +x plugin/dist/jodex.mjs\n\n",
+      "stderr": "\n  plugin/dist/jodex.mjs  164.0kb\n\n⚡ Done in 8ms\n"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "marketplace-add",
+      "command": [
+        "codex",
+        "plugin",
+        "marketplace",
+        "add",
+        "/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/market",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"marketplaceName\": \"jodex\",\n  \"installedRoot\": \"/private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/market\",\n  \"alreadyAdded\": false\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "plugin-add-old",
+      "command": [
+        "codex",
+        "plugin",
+        "add",
+        "jodex@jodex",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"pluginId\": \"jodex@jodex\",\n  \"name\": \"jodex\",\n  \"marketplaceName\": \"jodex\",\n  \"version\": \"0.1.0\",\n  \"installedPath\": \"/private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/codex-home/plugins/cache/jodex/jodex/0.1.0\",\n  \"authPolicy\": \"ON_INSTALL\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "mcp-list-old",
+      "command": [
+        "codex",
+        "mcp",
+        "list",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "[\n  {\n    \"name\": \"jodex-statusline\",\n    \"enabled\": true,\n    \"disabled_reason\": null,\n    \"transport\": {\n      \"type\": \"stdio\",\n      \"command\": \"node\",\n      \"args\": [\n        \"${PLUGIN_ROOT}/dist/jodex.mjs\",\n        \"statusline\",\n        \"--mcp\"\n      ],\n      \"env\": null,\n      \"env_vars\": [],\n      \"cwd\": null\n    },\n    \"startup_timeout_sec\": null,\n    \"tool_timeout_sec\": null,\n    \"auth_status\": \"unsupported\"\n  }\n]\n",
+      "stderr": ""
+    },
+    {
+      "name": "native-old",
+      "command": [
+        "codex",
+        "app-server",
+        "--stdio"
+      ],
+      "exit": 0,
+      "note": "terminated after read-only JSON-RPC probe",
+      "stdout": "{\"id\":1,\"result\":{\"userAgent\":\"jodex-local-probe/0.171.0 (Mac OS 26.5.2; arm64) Orca/1.4.266 (jodex-local-probe; 1.0)\",\"codexHome\":\"/private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/codex-home\",\"platformFamily\":\"unix\",\"platformOs\":\"macos\"}}\n{\"method\":\"configWarning\",\"params\":{\"summary\":\"Project-local config, hooks, and exec policies are disabled in the following folders until the project is trusted, but skills still load.\\n    1. /Volumes/WD-EXTERNAL/Personal/jodex-harness/.codex\\n       To load project-local config, hooks, and exec policies, add /Volumes/WD-EXTERNAL/Personal/jodex-harness as a trusted project in /private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/codex-home/config.toml.\\n\",\"details\":null},\"emittedAtMs\":1795218823281}\n{\"method\":\"remoteControl/status/changed\",\"params\":{\"status\":\"disabled\",\"serverName\":\"Hieus-Mac-mini.local\",\"installationId\":\"a8c7fe60-a6aa-4ffc-9f1e-3f3a67a79f99\",\"environmentId\":null},\"emittedAtMs\":1795218823281}\n{\"id\":2,\"result\":{\"data\":[{\"name\":\"jodex-statusline\",\"environmentId\":\"local\",\"runtimeStatus\":null,\"pluginId\":\"jodex@jodex\",\"httpOrigin\":null,\"serverInfo\":null,\"serverCapabilities\":null,\"toolListMeta\":null,\"tools\":{},\"toolsError\":\"MCP startup failed: handshaking with MCP server failed: connection closed: initialize response: connection closed: initialize response\",\"resources\":[],\"resourceTemplates\":[],\"authStatus\":\"unsupported\"}],\"nextCursor\":null}}\n",
+      "stderr": "2026-11-20T23:53:43.265079Z ERROR codex_app_server: Project-local config, hooks, and exec policies are disabled in the following folders until the project is trusted, but skills still load.\n    1. /Volumes/WD-EXTERNAL/Personal/jodex-harness/.codex\n       To load project-local config, hooks, and exec policies, add /Volumes/WD-EXTERNAL/Personal/jodex-harness as a trusted project in /private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/codex-home/config.toml.\n\n"
+    },
+    {
+      "name": "plugin-add-fixed",
+      "command": [
+        "codex",
+        "plugin",
+        "add",
+        "jodex@jodex",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"pluginId\": \"jodex@jodex\",\n  \"name\": \"jodex\",\n  \"marketplaceName\": \"jodex\",\n  \"version\": \"0.1.0\",\n  \"installedPath\": \"/private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/codex-home/plugins/cache/jodex/jodex/0.1.0\",\n  \"authPolicy\": \"ON_INSTALL\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "mcp-list-fixed",
+      "command": [
+        "codex",
+        "mcp",
+        "list",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "[\n  {\n    \"name\": \"jodex-statusline\",\n    \"enabled\": true,\n    \"disabled_reason\": null,\n    \"transport\": {\n      \"type\": \"stdio\",\n      \"command\": \"jodex\",\n      \"args\": [\n        \"statusline\",\n        \"--mcp\"\n      ],\n      \"env\": null,\n      \"env_vars\": [],\n      \"cwd\": null\n    },\n    \"startup_timeout_sec\": null,\n    \"tool_timeout_sec\": null,\n    \"auth_status\": \"unsupported\"\n  }\n]\n",
+      "stderr": ""
+    },
+    {
+      "name": "native-fixed",
+      "command": [
+        "codex",
+        "app-server",
+        "--stdio"
+      ],
+      "exit": 0,
+      "note": "terminated after read-only JSON-RPC probe",
+      "stdout": "{\"id\":1,\"result\":{\"userAgent\":\"jodex-local-probe/0.171.0 (Mac OS 26.5.2; arm64) Orca/1.4.266 (jodex-local-probe; 1.0)\",\"codexHome\":\"/private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/codex-home\",\"platformFamily\":\"unix\",\"platformOs\":\"macos\"}}\n{\"method\":\"configWarning\",\"params\":{\"summary\":\"Project-local config, hooks, and exec policies are disabled in the following folders until the project is trusted, but skills still load.\\n    1. /Volumes/WD-EXTERNAL/Personal/jodex-harness/.codex\\n       To load project-local config, hooks, and exec policies, add /Volumes/WD-EXTERNAL/Personal/jodex-harness as a trusted project in /private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/codex-home/config.toml.\\n\",\"details\":null},\"emittedAtMs\":1795218823374}\n{\"method\":\"remoteControl/status/changed\",\"params\":{\"status\":\"disabled\",\"serverName\":\"Hieus-Mac-mini.local\",\"installationId\":\"a8c7fe60-a6aa-4ffc-9f1e-3f3a67a79f99\",\"environmentId\":null},\"emittedAtMs\":1795218823374}\n{\"id\":2,\"result\":{\"data\":[{\"name\":\"jodex-statusline\",\"environmentId\":\"local\",\"runtimeStatus\":null,\"pluginId\":\"jodex@jodex\",\"httpOrigin\":null,\"serverInfo\":{\"name\":\"jodex-statusline\",\"title\":null,\"version\":\"0.1.0\",\"description\":null,\"icons\":null,\"websiteUrl\":null},\"serverCapabilities\":{\"resources\":{},\"tools\":{}},\"toolListMeta\":null,\"tools\":{\"jodex_statusline\":{\"name\":\"jodex_statusline\",\"title\":\"Jodex\",\"description\":\"Display this thread’s local Jodex workflow status. Read-only; no agent or model calls. This tool is part of plugin `Jodex`.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{}},\"annotations\":{\"readOnlyHint\":true,\"destructiveHint\":false,\"openWorldHint\":false},\"_meta\":{\"openai/ui\":{\"entrypoints\":[{\"type\":\"statusline\",\"resourceUri\":\"ui://jodex/footer\"}]}}}},\"toolsError\":null,\"resources\":[{\"mimeType\":\"application/json\",\"name\":\"Jodex footer\",\"uri\":\"ui://jodex/footer\"}],\"resourceTemplates\":[],\"authStatus\":\"unsupported\"}],\"nextCursor\":null}}\n",
+      "stderr": "2026-11-20T23:53:43.373534Z ERROR codex_app_server: Project-local config, hooks, and exec policies are disabled in the following folders until the project is trusted, but skills still load.\n    1. /Volumes/WD-EXTERNAL/Personal/jodex-harness/.codex\n       To load project-local config, hooks, and exec policies, add /Volumes/WD-EXTERNAL/Personal/jodex-harness as a trusted project in /private/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-f1-native-ce54bt50/codex-home/config.toml.\n\n"
+    }
+  ],
+  "sourceSha256": {
+    "plugin/.codex-plugin/statusline.mcp.json": "ed5a8c7685ae063a615cdc248656c60379f664a7595a7d67a957fe983c50e783",
+    "plugin/.codex-plugin/plugin.json": "e8463287394fa4e4d58221df6c109f6d2a76bb86abd2784bc7d7e08f1b229e2c",
+    "src/cli.ts": "f3402e8fa356094c21dde3ef379b7109a526cf2390899ed58a19a68f0042909c",
+    "src/statusline.ts": "71a6b473bcd9bef8b88fcfbf4199f35df794209a8509efed061fa43b4e6491b7",
+    "src/setup.ts": "97ed77946182d6e0828ab43935b255a30376982ca0807302e1a09e887fb7395c",
+    "README.md": "72f78d2a28b54081873611faa904ffd8b2f45ceb177920b0bc854a4ea8fec878",
+    "test/statusline-launcher.test.ts": "f69bfc5349aba337f631196c660fda715b7162149b1aac23fb1bc69fa7b207d8",
+    "plugin/dist/jodex.mjs": "3ed62b75c242ee6e9e9e4fea5a7b571011d6801dc4faa47f2851f5d57fe1dafb"
+  },
+  "providerCalls": 0,
+  "nativeModelTurns": 0,
+  "finalReview": {
+    "result": "REVIEW_PASS",
+    "reviewer": "inline_dx_reviewer",
+    "scope": "F1 launcher correction and native isolated regression evidence"
+  },
+  "actualMachinePluginRefresh": {
+    "exitCode": 0,
+    "pluginId": "jodex@jodex",
+    "effectiveTransport": {
+      "command": "jodex",
+      "args": [
+        "statusline",
+        "--mcp"
+      ]
+    },
+    "otherPluginChanges": false
+  },
+  "nativeVisualAcceptance": "unverified; user must restart existing TUI and select Jodex",
+  "actualMachineDiscovery": {
+    "serverInfo": {
+      "name": "jodex-statusline",
+      "title": null,
+      "version": "0.1.0",
+      "description": null,
+      "icons": null,
+      "websiteUrl": null
+    },
+    "toolsError": null,
+    "tool": {
+      "name": "jodex_statusline",
+      "title": "Jodex",
+      "description": "Display this thread’s local Jodex workflow status. Read-only; no agent or model calls. This tool is part of plugin `Jodex`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "openai/ui": {
+          "entrypoints": [
+            {
+              "type": "statusline",
+              "resourceUri": "ui://jodex/footer"
+            }
+          ]
+        }
+      }
+    },
+    "modelTurns": 0
+  },
+  "currentOutcome": "review_required"
+}

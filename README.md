@@ -51,7 +51,7 @@ What happens in M1:
 | Command | Purpose |
 |---|---|
 | `jodex check` | run the checks, print the status and the `Next:` step |
-| `jodex review start [--same-host]` / `jodex review wait` | independent review: by the other provider by default (Claude's work by Codex and the reverse), or a same-host subagent |
+| `jodex review start [--same-host] [--evidence <file>]` / `jodex review wait` | independent review: by the other provider by default (Claude's work by Codex and the reverse), or a same-host subagent. The reviewer gets the session's last 5 prompts; `--evidence` attaches a screenshot or log (project or temp dir, ≤5 MB, never secret-looking files) |
 | `jodex plan start` / `jodex plan accept\|revise\|block` / `jodex test start` | collaborative mode: planner subagent, your challenge, tester subagent |
 | `jodex cancel` | stop waiting for a subagent that will not report |
 | `jodex calibrate [--apply]` | how well Jev's probabilities match what happened; `--apply` moves the risk cut (also automatic every 10 closed runs) |
@@ -95,12 +95,16 @@ To compose with an existing footer, keep its command and have your own statuslin
 payload=$(cat)
 printf '%s\n' "$payload" | /absolute/path/to/existing-statusline.sh
 printf '\n'
-printf '%s\n' "$payload" | jodex statusline
+printf '%s\n' "$payload" | /absolute/path/to/node /absolute/path/to/jodex.mjs statusline
 ```
+
+Use absolute paths: Claude runs the statusline with a minimal `PATH`, so a bare `jodex` or `node` may not be found. `jodex setup --statusline` prints the exact command.
 
 Jodex does not execute or replace that existing command during setup. `jodex uninstall --statusline` removes only an unchanged, Jodex-owned command; it preserves a command you subsequently edit. If you composed a wrapper yourself, remove its Jodex call yourself. Settings backups are retained for manual recovery.
 
 **Codex:** rebuild and refresh the installed Jodex plugin with `jodex setup`, then enable **Custom status line** in `/experimental`, restart the TUI and use `/statusline` → **Choose a status line provider** → **Jodex**. This feature is experimental in the locally checked Codex 0.171.0. The plugin supplies a small local read-only MCP statusline resource; it does not expose workflow mutations or call another agent. Leave existing providers selected until you choose to switch. Restore your previous provider/built-in footer through `/statusline`. If Jodex is absent, check that the installed plugin cache contains the rebuilt manifest and bundle; a cached older plugin must be refreshed through Codex's plugin installation commands.
+
+The Codex transport launches `jodex statusline --mcp` from `PATH`: `jodex setup` links that command before installing the plugin. Start Codex from a terminal where `command -v jodex` and `command -v node` succeed. Codex 0.171.0's legacy plugin loader leaves plugin-root placeholders literal, so this manifest deliberately uses the installed command instead. If an older cached manifest still contains `${PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_ROOT}`, refresh the Jodex plugin and restart Codex; changing the statusline picker alone cannot repair that launcher. Claude's command footer remains configured with absolute paths as described above.
 
 The footer is blank outside an initialized project. Missing session identity is shown as unknown instead of selecting another session's run. It never scans/hashes the source or expires/mutates runs on a refresh. Native visual activation remains a separate check from local renderer/protocol tests; host trust, managed settings and disabled MCP/plugins may prevent it from loading. This footer does not implement display adapters for other agents yet.
 

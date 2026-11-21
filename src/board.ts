@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +8,7 @@ import { readCalibrations } from './calibrate.ts';
 import { type Decision, readDecisions } from './decisions.ts';
 import { readJson, writeJson } from './project.ts';
 import { riskFloor } from './rules.ts';
-import { listRuns } from './run.ts';
+import { listRuns, type Run } from './run.ts';
 
 export const jodexHome = () => process.env.JODEX_HOME ?? path.join(os.homedir(), '.jodex');
 const registryFile = () => path.join(jodexHome(), 'projects.json');
@@ -41,7 +42,44 @@ export type BoardRun = {
   mode: string;
   reviews: { round: string; status: string | null; blockers: number; disputed: number; reviewer: string | null; costUsd: number | null }[];
   plans: number;
+  // Live map: where the run is now, as last recorded by the hooks (not proof a process is running).
+  sessionId: string | null;
+  updatedAt: string;
+  modeSource: string | null;
+  stage: Stage;
+  seen: Stage[]; // stages with recorded evidence; skipped ones are not shown as done
+  awaiting: { role: string; since: string; reviewer: string | null } | null;
+  paths: string[];
 };
+
+const reviewerLabel = (v?: { host: string; mode: string }) => (v ? `${v.host}${v.mode === 'cross' ? ' (cross)' : ''}` : null);
+
+export const STAGES = ['intake', 'plan', 'implement', 'test', 'check', 'review', 'fix', 'done'] as const;
+export type Stage = (typeof STAGES)[number];
+const ROLE_STAGE: Record<string, Stage> = { planner: 'plan', tester: 'test', reviewer: 'review' };
+
+export function stageOf(r: Run): Stage {
+  if (!r.open) return 'done';
+  if (r.awaiting) return ROLE_STAGE[r.awaiting.role] ?? 'implement';
+  if (r.correctingAfter && r.reviews?.at(-1)?.round === r.correctingAfter) return 'fix';
+  if ((r.reviews ?? []).length) return 'review';
+  if (Object.keys(r.checks).length) return 'check';
+  return r.touched.length ? 'implement' : 'intake';
+}
+
+export function stagesSeen(r: Run): Stage[] {
+  const has: Record<Stage, boolean> = {
+    intake: true,
+    plan: !!r.plans?.length,
+    implement: r.touched.length > 0,
+    test: Object.values(r.agentRoles ?? {}).includes('tester'),
+    check: Object.keys(r.checks).length > 0,
+    review: !!r.reviews?.length,
+    fix: !!r.corrections,
+    done: !r.open,
+  };
+  return STAGES.filter((s) => has[s]);
+}
 
 // A Jev decision joined with what happened afterwards, so the board can show calibration.
 export type BoardDecision = Decision & {
@@ -107,10 +145,17 @@ export function collect(): { generatedAt: string; projects: { name: string; root
           status: v.status,
           blockers: v.findings.filter((f) => f.confirmed).length,
           disputed: v.findings.filter((f) => f.severity === 'blocking' && !f.confirmed).length,
-          reviewer: v.reviewer ? `${v.reviewer.host}${v.reviewer.mode === 'cross' ? ' (cross)' : ''}` : null,
+          reviewer: reviewerLabel(v.reviewer),
           costUsd: v.reviewer?.costUsd ?? null,
         })),
         plans: (r.plans ?? []).length,
+        sessionId: r.sessionId,
+        updatedAt: r.updatedAt,
+        modeSource: r.modeSource ?? null,
+        stage: stageOf(r),
+        seen: stagesSeen(r),
+        awaiting: r.awaiting ? { role: r.awaiting.role, since: r.awaiting.since, reviewer: r.awaiting.role === 'reviewer' ? reviewerLabel((r.reviews ?? []).at(-1)?.reviewer) : null } : null,
+        paths: r.touched.slice(0, 20),
       }),
     );
   });
@@ -125,12 +170,30 @@ function template(): string {
   return fs.readFileSync(file, 'utf8');
 }
 
+// `<` is escaped so no request text can close the data <script> element.
+const page = () => template().replace('/*__DATA__*/null', () => JSON.stringify(collect()).replaceAll('<', '\\u003c'));
+
 export function writeBoard(): string {
-  // `<` is escaped so no request text can close the data <script> element.
-  const data = JSON.stringify(collect()).replaceAll('<', '\\u003c');
   fs.mkdirSync(path.dirname(boardFile()), { recursive: true });
-  fs.writeFileSync(boardFile(), template().replace('/*__DATA__*/null', () => data));
+  fs.writeFileSync(boardFile(), page());
   return boardFile();
+}
+
+// `jodex board --live`: the same page on localhost; it polls /data for the live map.
+export function serveBoard(port: number): Promise<http.Server> {
+  const server = http.createServer((req, res) => {
+    // Only local names: a DNS-rebound page on another origin must not read the board.
+    if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host ?? '')) return res.writeHead(403).end();
+    const data = req.url === '/data';
+    if (!data && req.url !== '/') return res.writeHead(404).end();
+    try {
+      res.writeHead(200, { 'content-type': data ? 'application/json' : 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(data ? JSON.stringify(collect()) : page());
+    } catch (e) {
+      res.writeHead(500).end(String(e));
+    }
+  });
+  return new Promise((ok, fail) => server.once('error', fail).listen(port, '127.0.0.1', () => ok(server)));
 }
 
 // Best-effort refresh after each run update; a board failure never affects the task.

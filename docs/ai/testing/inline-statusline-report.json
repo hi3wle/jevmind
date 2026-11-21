@@ -83,5 +83,7 @@
   "openGates": [
     "native visual activation and acceptance in Claude/Codex",
     "developer acceptance remains separate"
-  ]
+  ],
+  "supersededBy": "native-statusline-registration-report.json",
+  "historicalNote": "Initial direct CLI/protocol checks remain historical; native plugin registration defect was discovered by user and corrected in F1. Use the newer report for current identities and native discovery."
 }

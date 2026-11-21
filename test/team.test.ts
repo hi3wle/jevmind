@@ -7,8 +7,8 @@ import { loadConfig } from '../src/config.ts';
 import { handleHook } from '../src/hooks.ts';
 import { jev } from '../src/jev.ts';
 import { sourceIdentity } from '../src/project.ts';
-import { evaluate, listRuns, saveRun } from '../src/run.ts';
-import { decidePlan, lastJson, startPlan, startReview, validateReview } from '../src/team.ts';
+import { createRun, evaluate, listRuns, saveRun } from '../src/run.ts';
+import { checkEvidence, decidePlan, lastJson, reconcileSession, startPlan, startReview, validateReview } from '../src/team.ts';
 import { tempRepo } from './helpers.ts';
 
 function repo(jevMode = 'off') {
@@ -288,4 +288,44 @@ test('tester shell edits to production files are caught when it stops', async ()
   assert.deepEqual(r.testerOutOfScope, ['src/a.js']);
   check(root);
   assert.equal(evaluate(run0(root), loadConfig(root), sourceIdentity(root)).gates.find((g) => g.gate === 'tester_scope')?.state, 'pending');
+});
+
+test('a run opened by jodex check after shell-only edits takes the session prompt', async () => {
+  const root = repo();
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'add the live map' }));
+  fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 2;\n');
+  const run = createRun(root, null, '');
+  reconcileSession(root, run, loadConfig(root));
+  assert.equal(run.request, 'add the live map');
+  assert.equal(run.sessionId, 'S', 'the run is claimed by the active session');
+  assert.equal(run.host, 'claude-code');
+  assert.deepEqual(run.touched, ['src/a.js']);
+});
+
+test('the review packet carries recent prompts and attached evidence', async () => {
+  const root = repo();
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'add a session filter to the board' }));
+  await handleHook(ev(root, 'Stop', { last_assistant_message: 'Shall I do it?' }));
+  await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'agreed' }));
+  await handleHook(write(root, 'src/a.js'));
+  fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 2;\n');
+  fs.writeFileSync(path.join(root, 'shot.png'), 'png');
+  check(root);
+  const r = run0(root);
+  assert.equal(startReview(root, r, loadConfig(root), false, ['shot.png']).ok, true);
+  const dir = path.join(root, r.reviews![0].snapshotDir);
+  const request = fs.readFileSync(path.join(dir, 'request.md'), 'utf8');
+  assert.match(request, /^agreed\n/);
+  assert.match(request, /- add a session filter to the board/);
+  assert.equal(fs.readFileSync(path.join(dir, 'evidence/1-shot.png'), 'utf8'), 'png');
+  assert.match(fs.readFileSync(path.join(root, r.reviews![0].briefFile!), 'utf8'), /evidence\/1-shot\.png/);
+});
+
+test('evidence outside the project or temp dirs, or secret-looking, is refused', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, '.env.local'), 'K=1');
+  assert.match(checkEvidence(root, ['/etc/hosts'])!, /inside the project/);
+  assert.match(checkEvidence(root, ['.env.local'])!, /secret/);
+  assert.match(checkEvidence(root, ['missing.png'])!, /not found/);
+  assert.equal(checkEvidence(root, ['src/a.js']), null);
 });

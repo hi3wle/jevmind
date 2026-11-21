@@ -79,9 +79,10 @@ test('shadow logs without acting; failures fall back to rules', async () => {
 test('session file is removed once the turn ends', async () => {
   const root = jevRepo('off');
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'q' }));
-  assert.equal(fs.readdirSync(path.join(root, '.jodex/sessions')).length, 1);
+  const files = () => fs.readdirSync(path.join(root, '.jodex/sessions')).sort();
+  assert.deepEqual(files(), ['S.json', 'S.prompts.json']);
   await handleHook(ev(root, 'Stop', { last_assistant_message: 'answer' }));
-  assert.equal(fs.readdirSync(path.join(root, '.jodex/sessions')).length, 0);
+  assert.deepEqual(files(), ['S.prompts.json'], 'the recent prompts outlive the turn');
 });
 
 test('Claude model is read from the last assistant transcript entry', () => {

@@ -1,0 +1,25 @@
+# Jodex project configuration. See coding-harness-v4.md §10.1.
+
+[risk]
+# Paths matching these globs raise the task's risk floor.
+critical = ["src/hooks.ts", "src/commands.ts", "src/jev.ts", "src/run.ts", "src/team.ts", "src/crossreview.ts", "plugin/hooks/**", "plugin/agents/**"]
+elevated = ["src/**", "package.json", "package-lock.json"]
+human_review_required = ["critical"]
+
+[checks]
+# Every check listed here is required before a run can be verified.
+test = "npm test"
+typecheck = "npx tsc --noEmit -p ."
+python = "python3 -m unittest discover -s tests"
+
+[review]
+# The other provider reviews: Claude Code's work by Codex, Codex's by Claude Code.
+cross_provider = true
+claude_model = "sonnet"
+
+[jev]
+# Jev (TypeSafe) decides at each prompt: workflow, risk, missing business rule.
+# With consent it sends the prompt (secrets redacted) and project metadata, never source.
+mode = "enforce" # off | shadow (log only) | enforce
+consent = true
+data_level = 2 # 1: metadata only, 2: + redacted prompt

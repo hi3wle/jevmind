@@ -38,7 +38,7 @@ export function setupStatusline(log: (s: string) => void, remove = false): boole
       if (!owns) { log('Claude statusline unchanged: no matching Jodex-owned footer.'); return true; }
       delete settings.statusLine;
     } else if (Object.hasOwn(settings, 'statusLine')) {
-      log(owns ? 'Claude statusline is already installed.' : 'Claude statusline preserved. Append `jodex statusline` in your existing statusline script; see README Inline status.');
+      log(owns ? 'Claude statusline is already installed.' : `Claude statusline preserved. Add this to your existing statusline script (same stdin): ${footerSetting().command}`);
       return true;
     } else settings.statusLine = footerSetting();
     fs.mkdirSync(path.dirname(file), { recursive: true });

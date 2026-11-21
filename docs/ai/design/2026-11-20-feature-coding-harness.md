@@ -58,3 +58,7 @@ Activation Claude phải bảo toàn statusline đã có: mặc định không t
 Nguồn đã kiểm: Claude settings/statusline docs; Codex create-statusline SKILL.md, assets/statusline.py, references/statusline.d.ts trên openai/codex main. Installed Codex 0.171.0 có tui_extensions_statusline experimental=false; Claude 2.1.311. Transport provider bám sample stdio newline, không thêm dependency MCP framework.
 
 Native footer references: [Claude statusline](https://code.claude.com/docs/en/statusline), [plugin defaults limits](https://code.claude.com/docs/en/plugins/components), [Codex create-statusline](https://github.com/openai/codex/blob/main/codex-rs/skills/src/assets/samples/create-statusline/SKILL.md). Installed feature availability is not proof of activated rendering.
+
+### DX1 F1 native compatibility correction
+
+Installed Codex0.171.0 legacy plugin loader does not expand either PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT in MCP argv, despite the newer agent-plugin docs. Confirmed through isolated native marketplace installation and app-server MCP startup failure. Use the already-installed `jodex statusline --mcp` executable through PATH, which setup links before plugin install. No per-machine path generation or second registration mechanism. Native discovery through mcpServerStatus/list is now an acceptance check, in addition to direct protocol smoke.

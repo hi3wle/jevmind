@@ -153,3 +153,22 @@ DX1 implementation handoff: implementer đã nhả quyền ghi; parent đã đ�
 DX1 tester đã nhả quyền ghi: npm test75/75, typecheck/build/diff exit0; built-CLI smoke5/5. Tester thêm test/statusline-regression.test.ts; source production không đổi, SHA khớp implementation. Actual evidence: `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-inline-independent-4gf2byel/results.json`. Bước tiếp theo final read-only review; native visual gate còn mở.
 
 DX1 final: independent reviewer REVIEW_PASS, không có blocker trong scope local. Actual command outputs và current source hashes lưu bền tại [inline-statusline-report.json](../testing/inline-statusline-report.json). Outcome hiện tại **review_required** cho native visual acceptance; không suy ra developer acceptance. Bước tiếp theo: Claude bật `jodex setup --statusline` (giữ footer cũ, compose theo README nếu đã có); Codex refresh plugin, bật Custom status line rồi chọn Jodex. Không chạy setup/global mutation trong lượt coding này. Không có provider calls.
+
+## DX1 F1 · Native Codex provider missing (21/11/2026)
+
+User screenshot: /statusline provider picker only Default. Repro: installed plugin enabled + tui_extensions_statusline=true, but installed Codex0.171.0 exposes literal `${PLUGIN_ROOT}/dist/jodex.mjs` in effective MCP transport. Isolated CODEX_HOME local marketplace reproduces both PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT not expanded. Direct launch exits1 MODULE_NOT_FOUND. Initial direct CLI/protocol smoke missed native plugin loading; native visual gate was correctly left open, but launcher registration is a confirmed defect.
+
+Approved inline-first scope authorizes this focused correction. Fix: use the installed `jodex statusline --mcp` command in Codex-only manifest, since normal setup links jodex onto PATH before installing plugin. Preserve other source/config edits. No new engine/global MCP config or dependency. Validate exact declared transport plus real Codex plugin install/discovery in isolated CODEX_HOME; refresh only Jodex plugin on actual machine after checks. No model/provider calls or unrelated config reads/changes.
+
+- [x] F1.1 Same implementer: minimal launcher fix + regression RED/GREEN, README path/cache note.
+- [x] F1.2 Tester: actual native isolated plugin registration/transport startup/discovery, full local checks once; preserve raw evidence, no paid calls.
+- [x] F1.3 Reviewer: current launcher/delta and actual native evidence, then parent refresh Jodex plugin and verify actual machine resolved transport/provider discovery.
+- [ ] F1.4 User reopens /statusline; visual acceptance remains separate.
+
+Ownership sequential implementer → tester → reviewer. This is the one default correction cycle for the confirmed DX1 production defect.
+
+F1 implementer handoff: manifest command=jodex, args=statusline --mcp; exact declared-transport regression RED MODULE_NOT_FOUND → GREEN tools/list. Parent inspected source; tester owns tests/native isolated acceptance next. No src/runtime logic change.
+
+F1 native independent check: old descriptor really fails native handshake; same-version plugin add refreshes cache, fixed descriptor native tools/list discovery succeeds. Full77/typecheck/build/diff pass. Durable raw outputs in native-statusline-registration-report.json. Tester released ownership; final reviewer next.
+
+F1 final: REVIEW_PASS. Parent đã refresh riêng `jodex@jodex` trên máy thật (native plugin add exit0), effective transport là jodex statusline --mcp; actual app-server discovery trả serverInfo=jodex-statusline, toolsError=null và đúng UI entrypoint. Không tạo model turn hoặc thay cấu hình provider/plugin khác. Native visual gate F1.4 còn mở: đóng/mở lại Codex hiện tại, /statusline chọn Jodex. Outcome review_required chỉ cho gate hiển thị/nghiệm thu của user.
