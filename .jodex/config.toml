@@ -11,6 +11,7 @@ human_review_required = ["critical"]
 test = "npm test"
 typecheck = "npx tsc --noEmit -p ."
 python = "python3 -m unittest discover -s tests"
+build = "npm run build"
 
 [review]
 # The other provider reviews: Claude Code's work by Codex, Codex's by Claude Code.
@@ -23,3 +24,7 @@ claude_model = "sonnet"
 mode = "enforce" # off | shadow (log only) | enforce
 consent = true
 data_level = 2 # 1: metadata only, 2: + redacted prompt
+
+[models]
+mode = "apply"
+
