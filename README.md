@@ -85,7 +85,7 @@ For the optional terminal footer, see the [Claude Code and Codex setup guide](do
 | [coding-harness-v4.md](coding-harness-v4.md) | product specification (current) |
 | [coding-harness-v3.2.md](coding-harness-v3.2.md) | previous specification; core flow, contracts and review cycle are retained in v4 |
 | [docs/ai/](docs/ai/) | AI DevKit lifecycle documents for feature `coding-harness` (requirements → testing) |
-| [src/](src/), [test/](test/), [plugin/](plugin/) | M1 implementation, tests, and the plugin shared by both hosts |
+| [src/](src/), [tests/](tests/), [plugin/](plugin/) | M1 implementation, tests, and the plugin shared by both hosts |
 | [docs/history/v3.2/](docs/history/v3.2/) | archived v3.2 lifecycle documents and README, including the tested native Claude static profile |
 | [scripts/review_snapshot.py](scripts/review_snapshot.py), [tests/](tests/) | tested snapshot helper; source and acceptance suite for the M2 TypeScript port |
 | [.agents/skills/](.agents/skills/) | v3.2 manual instruction pack (solo/review/collaborate); input to the v4 role prompts, replaced in M2 |
