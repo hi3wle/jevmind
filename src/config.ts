@@ -100,7 +100,8 @@ export function saveGlobalAllow(host: Agent, allow: Partial<Record<RouteRole, Al
   else delete entry.allow;
   if (Object.keys(entry).length) models[HOST_KEY[host]] = entry;
   else delete models[HOST_KEY[host]];
-  writeGlobal({ ...raw, models });
+  const { models: _, ...rest } = raw;
+  writeGlobal(Object.keys(models).length ? { ...rest, models } : rest);
 }
 const p = (model: string, effort: string): Pair => ({ model, effort });
 

@@ -191,3 +191,25 @@ test('saveGlobalAllow keeps the agents and the other host; null removes only its
   assert.equal(raw.models.codex, undefined, 'the empty host table is removed');
   assert.deepEqual((raw.models.claude as { allow: { tester: { models: string[] } } }).allow.tester.models, ['haiku']);
 });
+
+test('saveGlobalAllow null on the last host drops the models table and keeps agents', (t) => {
+  const file = path.join(home(t), 'config.toml');
+  saveGlobalAgents(AGENTS);
+  saveGlobalAllow('claude-code', { tester: { models: ['sonnet'] } });
+  saveGlobalAllow('claude-code', null);
+  const raw = parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+  assert.equal(raw.models, undefined, 'no empty [models] table is left');
+  assert.deepEqual(raw.agents, AGENTS);
+  assert.deepEqual(globalAgents(), AGENTS);
+  assert.deepEqual(globalAllow(), {});
+});
+
+test('saveGlobalAllow null on one host keeps models while the other host still has limits', (t) => {
+  const file = path.join(home(t), 'config.toml');
+  saveGlobalAllow('claude-code', { tester: { models: ['sonnet'] } });
+  saveGlobalAllow('codex', { planner: { efforts: ['low'] } });
+  saveGlobalAllow('claude-code', null);
+  const raw = parse(fs.readFileSync(file, 'utf8')) as { models: Record<string, unknown> };
+  assert.equal(raw.models.claude, undefined);
+  assert.deepEqual((raw.models.codex as { allow: { planner: { efforts: string[] } } }).allow.planner.efforts, ['low']);
+});

@@ -23,16 +23,21 @@ const name = (m: string | null) => (m ? (m.startsWith('gpt-') ? m : m[0].toUpper
 const cell = (p: Route['normal']) => `${name(p.model)} · ${p.effort ?? 'default'}`;
 
 // "Step | Normal task | Critical task | Why"; * marks a cell the developer's limits changed.
-export function routeTable(host: Agent, effective: Routes, recommended: Routes = DEFAULT_ROUTES): string[] {
+// When the lines do not fit `width` (an 80-column terminal), the reasons move below the table.
+export function routeTable(host: Agent, effective: Routes, recommended: Routes = DEFAULT_ROUTES, width = Infinity): string[] {
   const mark = (role: RouteRole, tier: 'normal' | 'critical') => {
     const [e, r] = [effective[host][role][tier], recommended[host][role][tier]];
     return `${cell(e)}${e.model !== r.model || e.effort !== r.effort ? ' *' : ''}`;
   };
-  const rows = ROLES.map((role) => [STEP[role], mark(role, 'normal'), mark(role, 'critical'), WHY[role]]);
-  const all = [['Step', 'Normal task', 'Critical task', 'Why'], ...rows];
-  const width = [0, 1, 2].map((i) => Math.max(...all.map((r) => r[i].length)));
-  return all.map((r) => r.map((c, i) => (i < 3 ? c.padEnd(width[i]) : c)).join('  '));
+  const all = [['Step', 'Normal task', 'Critical task', 'Why'], ...ROLES.map((role) => [STEP[role], mark(role, 'normal'), mark(role, 'critical'), WHY[role]])];
+  const cols = [0, 1, 2].map((i) => Math.max(...all.map((r) => r[i].length)));
+  const lines = all.map((r) => r.map((c, i) => (i < 3 ? c.padEnd(cols[i]) : c)).join('  '));
+  if (Math.max(...lines.map((l) => l.length)) <= width) return lines;
+  return [...all.map((r) => r.slice(0, 3).map((c, i) => c.padEnd(cols[i])).join('  ').trimEnd()), '', ...ROLES.map((role) => `${STEP[role]}: ${WHY[role]}`)];
 }
+
+// Room inside a clack note box: its border and padding take 6 columns.
+const noteWidth = () => (process.stdout.columns || 80) - 6;
 
 export const pickLine = (role: RouteRole, route: Route) => `→ ${STEP[role]} will run: ${cell(route.normal)} (normal), ${cell(route.critical)} (critical)`;
 
@@ -46,7 +51,7 @@ export async function modelsCommand(agents: Agent[], log: (s: string) => void, i
       log(`Limit a step in ${file}, e.g.\n[models.${host === 'codex' ? 'codex' : 'claude'}.allow.tester]\nmodels = ["${MODEL_ORDER[host][0]}", "${MODEL_ORDER[host][1]}"]\nefforts = ["medium"]`);
       continue;
     }
-    prompt.note(`${routeTable(host, effective(saved)).join('\n')}${Object.keys(saved).length ? '\n* = changed by your limits' : ''}\n\nHigh effort is used only by the planner. Change this anytime: jodex models`, `Model routing (${AGENT_NAME[host]})`);
+    prompt.note(`${routeTable(host, effective(saved), DEFAULT_ROUTES, noteWidth()).join('\n')}${Object.keys(saved).length ? '\n* = changed by your limits' : ''}\n\nHigh effort is used only by the planner. Change this anytime: jodex models`, `Model routing (${AGENT_NAME[host]})`);
     const how = await prompt.select({
       message: 'How do you want to route models?',
       options: [
@@ -93,7 +98,7 @@ export async function modelsCommand(agents: Agent[], log: (s: string) => void, i
         else delete draft[role];
         log(pickLine(role, effective(draft)[host][role]));
       }
-      prompt.note(routeTable(host, effective(draft)).join('\n'), 'Review your routing (* = changed)');
+      prompt.note(routeTable(host, effective(draft), DEFAULT_ROUTES, noteWidth()).join('\n'), 'Review your routing (* = changed)');
       const next = await prompt.select({
         message: 'Save these settings?',
         options: [

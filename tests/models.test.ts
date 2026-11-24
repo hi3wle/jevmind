@@ -87,6 +87,18 @@ test('routeTable: default routes have the header, one row per step, and no marks
   assert.match(codex.find((l) => l.startsWith('Tester'))!, /gpt-6-luna · high\s+gpt-6\.2-sol · medium/);
 });
 
+test('routeTable: a narrow width drops the Why column and lists the reasons below, within the width', () => {
+  for (const host of ['claude-code', 'codex'] as const) {
+    const lines = routeTable(host, DEFAULT_ROUTES, DEFAULT_ROUTES, 74);
+    assert.ok(lines.every((l) => l.length <= 74), `${host}: ${Math.max(...lines.map((l) => l.length))} columns`);
+    assert.doesNotMatch(lines[0], /Why/, host);
+    assert.match(lines[0], /^Step\s+Normal task\s+Critical task$/, host);
+    for (const reason of ['Planner: Plans need the strongest model; runs rarely', 'Implementor: Suggestion only: this is your own session', 'Tester: Scoped tests, verified by jodex check', 'Reviewer: Reads and verifies; no edits']) {
+      assert.ok(lines.includes(reason), `${host}: missing "${reason}"`);
+    }
+  }
+});
+
 test('routeTable: a cell that differs from the recommendation gets a star, and only that cell', () => {
   const eff = applyAllow(DEFAULT_ROUTES, { 'claude-code': { tester: { models: ['opus'] } } });
   const lines = routeTable('claude-code', eff);
