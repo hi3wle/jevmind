@@ -12,6 +12,7 @@ import { jev, redact } from './jev.ts';
 import { changedPaths, jodexDir, type Manifest, manifest, readJson, sourceIdentity, writeJson } from './project.ts';
 import {
   CORRECTION_BUDGET,
+  MISSING_CHECKS_NEXT,
   evaluate,
   type Finding,
   type ModelPair,
@@ -227,6 +228,7 @@ export function startReview(root: string, run: Run, cfg: Config, sameHost = fals
   if (!run.touched.length) return { ok: false, text: 'No changes are recorded for this run, so there is nothing to review.' };
   const identity = sourceIdentity(root);
   const result = evaluate(run, cfg, identity);
+  if (result.gates.some((g) => g.gate === 'checks' && g.state === 'unavailable')) return { ok: false, text: MISSING_CHECKS_NEXT };
   const checks = result.gates.filter((g) => g.required && !['review', 'plan', 'human_review'].includes(g.gate));
   if (checks.some((g) => g.state !== 'satisfied'))
     return { ok: false, text: 'Checks must pass on the current source before a review: run `jodex check` and fix failures first.' };

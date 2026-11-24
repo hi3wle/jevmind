@@ -36,8 +36,17 @@ function modelsConfig(raw: any): Config['models'] {
 export function loadConfig(root: string): Config {
   const raw = parse(fs.readFileSync(configPath(root), 'utf8')) as Record<string, any>;
   const risk = raw.risk ?? {};
+  if (typeof risk !== 'object' || Array.isArray(risk) || risk instanceof Date) throw new Error('[risk] must be a table in .jodex/config.toml');
+  for (const key of ['critical', 'elevated', 'human_review_required']) {
+    if (risk[key] !== undefined && (!Array.isArray(risk[key]) || risk[key].some((value: unknown) => typeof value !== 'string'))) throw new Error(`[risk] ${key} must be an array of strings in .jodex/config.toml`);
+  }
+  if (risk.human_review_required?.some((value: string) => !['low', 'elevated', 'critical'].includes(value))) throw new Error('[risk] human_review_required contains an unknown risk level');
   const checks: Record<string, string> = {};
-  for (const [name, cmd] of Object.entries(raw.checks ?? {})) if (typeof cmd === 'string' && cmd.trim()) checks[name] = cmd;
+  if (raw.checks !== undefined && (!raw.checks || typeof raw.checks !== 'object' || Array.isArray(raw.checks))) throw new Error('[checks] must be a table in .jodex/config.toml');
+  for (const [name, cmd] of Object.entries(raw.checks ?? {})) {
+    if (typeof cmd !== 'string' || !cmd.trim()) throw new Error(`[checks] ${name} must be a non-empty command in .jodex/config.toml`);
+    checks[name] = cmd;
+  }
   const jev = raw.jev ?? {};
   const review = raw.review ?? {};
   return {

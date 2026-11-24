@@ -85,6 +85,20 @@ export async function handleHook(ev: HookEvent): Promise<object> {
   if (process.env.JODEX_DISABLE) return {}; // inside a Jodex reviewer process
   const root = gitRoot(ev.cwd);
   if (!root || !isInitialized(root)) return {};
+  try {
+    loadConfig(root);
+  } catch {
+    const reason = 'Jodex: configuration cannot be read or is invalid. Ask the developer to repair .jodex/config.toml.';
+    if (ev.hook_event_name === 'PreToolUse') {
+      const tool = ev.tool_name ?? '';
+      const command = String(ev.tool_input?.command ?? '');
+      if (READ_TOOLS.has(tool) || (['Bash', 'shell', 'exec_command'].includes(tool) && isReadOnlyCommand(command))) return {};
+      return deny(reason);
+    }
+    if (ev.hook_event_name === 'Stop' && !ev.stop_hook_active) return { decision: 'block', reason };
+    if (ev.hook_event_name === 'UserPromptSubmit') return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: reason } };
+    return {};
+  }
   switch (ev.hook_event_name) {
     case 'UserPromptSubmit':
       return onPrompt(root, ev);

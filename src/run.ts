@@ -293,8 +293,10 @@ export function evaluate(run: Run, cfg: Config, identity: string): { status: Com
           : 'review_required';
   const next = nextStep(run, gates);
   // Whether the next step is the agent's (the run stays open) or the developer's.
-  return { status, gates, next, agentNext: next !== null && !/developer/.test(next) };
+  return { status, gates, next, agentNext: next !== null && next !== MISSING_CHECKS_NEXT && !/developer/.test(next) };
 }
+
+export const MISSING_CHECKS_NEXT = 'ask the developer to configure checks in .jodex/config.toml, then run `jodex check`';
 
 // The one thing the worker should do next; null when nothing is left for the agent.
 function nextStep(run: Run, gates: Gate[]): string | null {
@@ -305,7 +307,8 @@ function nextStep(run: Run, gates: Gate[]): string | null {
   if (run.mode === 'collaborative' && plan && !plan.decision)
     return `challenge the plan in ${plan.file}: \`jodex plan accept\`, \`jodex plan revise "<reason>"\` or \`jodex plan block "<reason>"\``;
   if (gates.some((g) => g.check && g.state === 'failed')) return 'fix the failing check, then run `jodex check`';
-  if (gates.some((g) => (g.check || g.gate === 'checks') && g.state !== 'satisfied')) return 'run `jodex check`';
+  if (gates.some((g) => g.gate === 'checks' && g.state === 'unavailable')) return MISSING_CHECKS_NEXT;
+  if (gates.some((g) => g.check && g.state !== 'satisfied')) return 'run `jodex check`';
   const review = latestReview(run);
   if (pending('review')) {
     if (review?.status === 'changes_required' && review.at) {

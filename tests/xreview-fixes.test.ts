@@ -11,7 +11,7 @@ import { decideIntake } from '../src/decisions.ts';
 import { handleHook } from '../src/hooks.ts';
 import { redact } from '../src/jev.ts';
 import { sourceIdentity } from '../src/project.ts';
-import { evaluate, expireAwaiting, listRuns, saveRun } from '../src/run.ts';
+import { createRun, evaluate, expireAwaiting, listRuns, saveRun } from '../src/run.ts';
 import { isReadOnlyCommand, startReview } from '../src/team.ts';
 import { tempRepo } from './helpers.ts';
 
@@ -87,6 +87,42 @@ test('9: changing a check command makes its evidence stale', () => {
   const r = { runId: 'r', sessionId: null, host: null, model: null, request: '', mode: 'solo' as const, riskFloor: 'low' as const, touched: [], checks: { test: { command: 'true', exitCode: 0, identity: 'I', at: '', outputTail: '' } }, stopBlocks: 0, open: true, createdAt: '', updatedAt: '' };
   const cfg = { ...loadConfig(root), checks: { test: 'npm run integration' } };
   assert.equal(evaluate(r, cfg, 'I').status, 'review_required');
+});
+
+test('empty checks hand off to the developer and cannot start a review', async () => {
+  const root = repo('');
+  const r = await reviewing(root);
+  const result = evaluate(r, loadConfig(root), sourceIdentity(root));
+  assert.equal(result.status, 'review_required');
+  assert.match(result.next!, /ask the developer to configure checks/);
+  assert.equal(result.agentNext, false);
+  const started = startReview(root, r, loadConfig(root));
+  assert.equal(started.ok, false);
+  assert.match(started.text, /ask the developer to configure checks/);
+});
+
+test('mixed or malformed check entries reject the whole configuration', () => {
+  for (const checks of ['test = "true"\nlint = 42', 'test = "true"\nlint = "  "']) {
+    const root = repo(checks);
+    assert.throws(() => loadConfig(root), /\[checks\].*must be a non-empty command/);
+  }
+});
+
+test('stale source and stale command evidence block review with the check handoff', async () => {
+  for (const stale of ['source', 'command'] as const) {
+    const root = repo();
+    await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'review: stale checks' }));
+    const r = createRun(root, 'S', 'review: stale checks');
+    fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 2;\n');
+    runChecks(root, loadConfig(root), r, () => {});
+    if (stale === 'source') fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 3;\n');
+    else fs.writeFileSync(path.join(root, '.jodex/config.toml'), '[risk]\ncritical = []\n[checks]\ntest = "false"\n[review]\ncross_provider = false\n');
+    const updated = loadConfig(root);
+    const result = evaluate(r, updated, sourceIdentity(root));
+    assert.equal(result.status, 'review_required', stale);
+    assert.equal(result.next, 'run `jodex check`', stale);
+    assert.equal(startReview(root, r, updated).ok, false, stale);
+  }
 });
 
 test('11: disputed blockers are not washed away by another review on unchanged source', async () => {

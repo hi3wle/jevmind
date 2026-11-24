@@ -96,6 +96,31 @@ test('critical path keeps the run at review_required', async () => {
   assert.match(out.reason, /risk critical/);
 });
 
+test('invalid config fails closed for Claude and Codex hooks while preserving read-only access', async () => {
+  const invalidConfigs = [
+    '[risk\n',
+    '[risk]\ncritical = "src/auth/**"\n',
+    '[risk]\nhuman_review_required = ["urgent"]\n',
+    '[checks]\ntest = 42\n',
+  ];
+
+  for (const config of invalidConfigs) for (const host of [{}, { turn_id: 'T1', model: 'gpt-test' }]) {
+    const root = tempRepo();
+    writeConfig(root, { test: 'true' });
+    fs.writeFileSync(path.join(root, '.jodex/config.toml'), config);
+
+    const prompt: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'please inspect this', ...host }));
+    assert.match(prompt.hookSpecificOutput.additionalContext, /configuration cannot be read or is invalid/);
+    assert.deepEqual(await handleHook(ev(root, 'PreToolUse', { tool_name: 'Read', tool_input: { file_path: path.join(root, 'README.md') }, ...host })), {});
+    assert.deepEqual(await handleHook(ev(root, 'PreToolUse', { tool_name: 'Bash', tool_input: { command: 'git status' }, ...host })), {});
+
+    const denied: any = await handleHook(ev(root, 'PreToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(root, 'README.md') }, ...host }));
+    assert.equal(denied.hookSpecificOutput.permissionDecision, 'deny');
+    assert.match(denied.hookSpecificOutput.permissionDecisionReason, /configuration cannot be read or is invalid/);
+    assert.equal((await handleHook(ev(root, 'Stop', { last_assistant_message: 'Done', ...host })) as any).decision, 'block');
+  }
+});
+
 test('shell edit to a critical path after `jodex check` still counts as critical', async () => {
   const root = tempRepo({ 'src/auth/session.js': 'export const ttl = 60;\n' });
   writeConfig(root, { test: 'true' });
