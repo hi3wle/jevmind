@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { renderConfig } from './config.ts';
+import { type Agent, renderConfig } from './config.ts';
 import { STATUS_LINE } from './hooks.ts';
 import { configPath, jodexDir, readJson, writeJson } from './project.ts';
 
@@ -38,7 +38,7 @@ export function detectChecks(root: string): Record<string, string> {
   return checks;
 }
 
-export function planInit(root: string, jev = false): Change[] {
+export function planInit(root: string, jev = false, projectAgents?: Agent[]): Change[] {
   const changes: Change[] = [];
   const state = readJson<InitState>(stateFile(root), { createdAgents: false, createdClaude: false, addedImport: false, addedIgnore: [] });
   const saveState = () => writeJson(stateFile(root), state);
@@ -47,10 +47,10 @@ export function planInit(root: string, jev = false): Change[] {
     const checks = detectChecks(root);
     changes.push({
       file: '.jodex/config.toml',
-      summary: `create (checks: ${Object.values(checks).join(', ') || 'none detected; add them before relying on verified'}; Jev ${jev ? 'enforce' : 'off'}). Jodex selects planner and tester models. For host defaults, set mode = "off" under [models] in .jodex/config.toml.`,
+      summary: `create (checks: ${Object.values(checks).join(', ') || 'none detected; add them before relying on verified'}; Jev ${jev ? 'enforce' : 'off'}${projectAgents ? `; agents ${projectAgents.join(', ')}` : ''}). Jodex selects planner and tester models. For host defaults, set mode = "off" under [models] in .jodex/config.toml.`,
       apply: () => {
         fs.mkdirSync(jodexDir(root), { recursive: true });
-        fs.writeFileSync(configPath(root), renderConfig(checks, jev));
+        fs.writeFileSync(configPath(root), renderConfig(checks, jev, projectAgents));
       },
     });
   }

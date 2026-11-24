@@ -14,8 +14,9 @@ const cfg = (checks: Record<string, string>, critical: string[] = []) => ({
   risk: { critical, elevated: ['package.json'], humanReviewRequired: ['critical' as const] },
   checks,
   jev: { mode: 'off' as const, consent: false, dataLevel: 2 as const, thresholds: { raiseRisk: 0.5 } },
+  agents: ['claude-code', 'codex'] as Config['agents'],
   review: { crossProvider: false, claudeModel: 'sonnet' },
-  models: { mode: 'off' as const, roles: {}, levels: {} as Config['models']['levels'] }, // off: levels are never read
+  models: { mode: 'off' as const, routes: {} as Config['models']['routes'] }, // off: routes are never read
 });
 const run = (over: Partial<Run> = {}): Run => ({
   runId: 'r', sessionId: 's', host: null, model: null, request: '', mode: 'solo', riskFloor: 'low', touched: [], checks: {},

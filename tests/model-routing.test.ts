@@ -284,24 +284,50 @@ test('P1: attempts per role with keys; no proposal without [models]', async () =
   assert.deepEqual(r.attempts!.map((a) => [a.role, a.key, a.launch]), [['tester', 'tester-0', 'subagent'], ['reviewer', 'R0', 'subagent']]);
 });
 
-test('P1: shadow proposals: critical floor is L2 and L0 is for the tester only', () => {
-  const run = (riskFloor: 'low' | 'critical') => ({ riskFloor }) as Run;
-  const shadow = loadConfig(repo('[models]\nmode = "shadow"\nroles = { reviewer = "L0", tester = "L0" }\n'));
-  assert.deepEqual(propose('planner', 'claude-code', run('critical'), shadow).proposed, { model: 'opus', effort: 'high' });
-  assert.deepEqual(propose('planner', 'codex', run('low'), shadow).proposed, shadow.models.levels.codex.L1);
-  const reviewer = propose('reviewer', 'claude-code', run('low'), shadow);
-  assert.deepEqual(reviewer.proposed, { model: 'sonnet', effort: 'high' });
-  assert.match(reviewer.reason!, /L0 is for the tester only/);
-  assert.deepEqual(propose('tester', 'claude-code', run('low'), shadow).proposed, { model: 'haiku', effort: 'high' });
-  const apply = loadConfig(repo('[models]\nmode = "apply"\n'));
-  const p = propose('planner', 'claude-code', run('low'), apply);
-  assert.deepEqual(p.proposed, { model: 'opus', effort: 'high' });
-  assert.equal(p.policy, 'launch-v1');
+const TABLE = {
+  'claude-code': { planner: [['opus', 'medium'], ['opus', 'high']], implementor: [['sonnet', 'medium'], ['opus', 'medium']], tester: [['haiku', 'medium'], ['sonnet', 'medium']], reviewer: [['sonnet', 'medium'], ['opus', 'medium']] },
+  codex: { planner: [['gpt-6.2-astra', 'medium'], ['gpt-6.2-astra', 'high']], implementor: [['gpt-6.2-sol', 'medium'], ['gpt-6.2-sol', 'medium']], tester: [['gpt-6-luna', 'high'], ['gpt-6.2-sol', 'medium']], reviewer: [['gpt-6.2-sol', 'medium'], ['gpt-6.2-astra', 'medium']] },
+} as const;
+
+test('P1: only the planner and the Codex tester normal tier (developer exception, Luna) route to effort high or xhigh', () => {
+  for (const mode of ['shadow', 'apply']) {
+    const cfg = loadConfig(repo(`[models]\nmode = "${mode}"\n`));
+    for (const host of ['claude-code', 'codex'] as const) for (const role of ['implementor', 'tester', 'reviewer'] as const) for (const floor of ['low', 'elevated', 'critical'] as const) {
+      const exception = host === 'codex' && role === 'tester' && floor !== 'critical';
+      const p = propose(role as any, host, { riskFloor: floor } as Run, cfg);
+      if (exception) assert.deepEqual(p.proposed, { model: 'gpt-6-luna', effort: 'high' }, `${mode} ${host} ${role} ${floor}`);
+      else assert.ok(!['high', 'xhigh'].includes(p.proposed!.effort!), `${mode} ${host} ${role} ${floor} is ${p.proposed!.effort}`);
+    }
+  }
 });
 
-test('apply status explains the planner/tester scope and unchanged reviewer', () => {
+test('P1: shadow and apply propose the table pair per host, role and floor (elevated is normal)', () => {
+  for (const mode of ['shadow', 'apply']) {
+    const cfg = loadConfig(repo(`[models]\nmode = "${mode}"\n`));
+    for (const [host, roles] of Object.entries(TABLE)) for (const [role, [normal, critical]] of Object.entries(roles)) for (const floor of ['low', 'elevated', 'critical'] as const) {
+      const [model, effort] = floor === 'critical' ? critical : normal;
+      const p = propose(role as any, host, { riskFloor: floor } as Run, cfg);
+      assert.deepEqual(p.proposed, { model, effort }, `${mode} ${host} ${role} ${floor}`);
+      assert.equal(p.policy, 'routes-v1');
+    }
+  }
+  for (const mode of ['off', 'shadow']) assert.equal(propose('planner', 'other', { riskFloor: 'low' } as Run, loadConfig(repo(`[models]\nmode = "${mode}"\n`))).proposed, null);
+  assert.equal(propose('planner', 'codex', { riskFloor: 'low' } as Run, loadConfig(repo())).proposed, null, 'off');
+});
+
+test('P1: [models.<host>] <role> and <role>_critical override the tiers; old keys are ignored', () => {
+  const cfg = loadConfig(repo('[models]\nmode = "apply"\n[models.codex]\nplanner = { model = "m1", effort = "low" }\nplanner_critical = { model = "m2" }\n[models.claude]\nreviewer_critical = { model = "opus", effort = "xhigh" }\n[models.roles]\nreviewer = "L0"\n[models.claude.levels]\nL1 = { model = "x" }\n'));
+  const at = (role: any, host: string, riskFloor: 'low' | 'critical') => propose(role, host, { riskFloor } as Run, cfg).proposed;
+  assert.deepEqual(at('planner', 'codex', 'low'), { model: 'm1', effort: 'low' });
+  assert.deepEqual(at('planner', 'codex', 'critical'), { model: 'm2', effort: null });
+  assert.deepEqual(at('reviewer', 'claude-code', 'critical'), { model: 'opus', effort: 'xhigh' });
+  assert.deepEqual(at('reviewer', 'claude-code', 'low'), { model: 'sonnet', effort: 'medium' }, 'ignored [models.roles]');
+  assert.deepEqual(at('tester', 'codex', 'low'), { model: 'gpt-6-luna', effort: 'high' }, 'developer exception');
+});
+
+test('apply status states the planner, tester and reviewer scope', () => {
   const root = repo('[models]\nmode = "apply"\n');
-  for (const cmd of ['status', 'check']) assert.match(jodex(root, cmd).stdout, /apply requests planner\/tester models; reviewer remains shadow/, cmd);
+  for (const cmd of ['status', 'check']) assert.match(jodex(root, cmd).stdout, /apply requests planner, tester and reviewer models by role and risk/, cmd);
   assert.equal(/apply is not supported/.test(jodex(repo('[models]\nmode = "shadow"\n'), 'check').stdout), false);
 });
 
@@ -312,18 +338,21 @@ test('apply launches planner/tester with approved native arguments and leaves ob
     const r = createRun(root, null, 'route this role');
     r.host = host;
     r.riskFloor = riskFloor;
-    const model = host === 'codex' ? role === 'planner' ? 'gpt-6.2-astra' : 'gpt-6-luna' : role === 'planner' ? 'opus' : riskFloor === 'critical' ? 'sonnet' : 'haiku';
+    const [model, effort] = TABLE[host as keyof typeof TABLE][role][riskFloor === 'critical' ? 1 : 0];
     const out = role === 'planner' ? startPlan(root, r, cfg) : startTests(root, r, cfg);
     assert.equal(out.ok, true, out.text);
     const attempt = r.attempts!.at(-1)!;
-    assert.deepEqual(attempt.requested, { model, effort: host === 'codex' ? 'high' : null });
+    assert.deepEqual(attempt.requested, { model, effort });
     assert.deepEqual(attempt.observed, { model: null, effort: null, source: null });
     assert.equal(attempt.mismatch, 'unknown');
     assert.ok(out.text.includes(JSON.stringify(model)), out.text);
     if (host === 'codex') {
-      assert.match(out.text, /"reasoning_effort":"high"/);
+      assert.match(out.text, new RegExp(`"reasoning_effort":"${effort}"`));
       assert.match(out.text, /"fork_turns":"none"/);
-    } else assert.match(out.text, new RegExp(`"subagent_type":"jodex:${role}"`));
+    } else {
+      assert.match(out.text, new RegExp(`"subagent_type":"jodex:${role}"`));
+      assert.match(out.text, new RegExp(`"effort":"${effort}"`));
+    }
     assert.match(out.text, /do not launch|Do not launch/);
   }
 });
@@ -332,7 +361,7 @@ test('apply refuses empty model overrides without awaiting a role', () => {
   for (const role of ['planner', 'tester'] as const) {
     const root = repo('[models]\nmode = "apply"\n');
     const cfg = loadConfig(root);
-    cfg.models.levels.codex[role === 'planner' ? 'L2' : 'L0'].model = ' ';
+    cfg.models.routes.codex[role].normal.model = ' ';
     const r = createRun(root, null, 'invalid model');
     r.host = 'codex';
     const out = role === 'planner' ? startPlan(root, r, cfg) : startTests(root, r, cfg);
@@ -353,13 +382,13 @@ test('apply tester reconciles shell-only critical edits before choosing the Clau
   assert.equal(out.status, 0, out.stderr);
   const r = run0(root);
   assert.equal(r.riskFloor, 'critical');
-  assert.deepEqual(r.attempts!.at(-1)!.requested, { model: 'sonnet', effort: null });
+  assert.deepEqual(r.attempts!.at(-1)!.requested, { model: 'sonnet', effort: 'medium' });
 });
 
 test('apply omits an unspecified Codex effort argument', () => {
   const root = repo('[models]\nmode = "apply"\n');
   const cfg = loadConfig(root);
-  cfg.models.levels.codex.L0.effort = null;
+  cfg.models.routes.codex.tester.normal.effort = null;
   const r = createRun(root, null, 'default effort');
   r.host = 'codex';
   const out = startTests(root, r, cfg);
@@ -649,7 +678,7 @@ test('CLI run choice: an unclaimed run is picked up by the active session', asyn
 });
 
 test('board: stage models from attempts, legacy roleModels fallback', () => {
-  const attempt = (over: Partial<Attempt>): Attempt => ({ role: 'tester', key: 'tester-0', since: 's', host: 'claude-code', launch: 'subagent', proposed: { model: 'sonnet', effort: 'high' }, requested: { model: null, effort: null }, observed: { model: 'claude-sonnet-5-5', effort: null, source: 'claude-subagent-transcript' }, mismatch: 'unknown', policy: 'levels-v1', reason: null, ...over });
+  const attempt = (over: Partial<Attempt>): Attempt => ({ role: 'tester', key: 'tester-0', since: 's', host: 'claude-code', launch: 'subagent', proposed: { model: 'sonnet', effort: 'high' }, requested: { model: null, effort: null }, observed: { model: 'claude-sonnet-5-5', effort: null, source: 'claude-subagent-transcript' }, mismatch: 'unknown', policy: 'routes-v1', reason: null, ...over });
   const base = { runId: 'r', sessionId: 'S', host: 'claude-code', model: 'm', request: '', mode: 'review' as const, riskFloor: 'low' as const, touched: ['a.js'], checks: {}, stopBlocks: 0, open: true, createdAt: '', updatedAt: '', agentRoles: { t: 'tester' as const }, testerStartedAt: '2026-01-01T00:00:00Z', testerDoneAt: '2026-01-01T00:01:00Z' };
   const reviewer = attempt({ role: 'reviewer', key: 'R0', launch: 'detached', requested: { model: 'sonnet', effort: null }, observed: { model: null, effort: null, source: null } });
   const review = { round: 'R0', scope: [], snapshotId: '', snapshotDir: '', startedAt: 's', at: null, status: null, findings: [], reviewedPaths: [], limitations: [], agentType: null, reviewer: { host: 'claude-code' as const, mode: 'cross' as const, model: null } };
@@ -667,4 +696,69 @@ test('a new project config routes planner and tester models', () => {
   fs.mkdirSync(path.join(root, '.jodex'));
   fs.writeFileSync(path.join(root, '.jodex/config.toml'), renderConfig({ test: 'true' }));
   assert.equal(loadConfig(root).models.mode, 'apply');
+});
+
+// UserPromptSubmit: how many implementor suggestions the context carries.
+const HINT = /the recommended main model is/g;
+const hints = async (root: string, extra: object = {}) => {
+  const out: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'how does a work?', ...extra }));
+  return (out.hookSpecificOutput.additionalContext.match(HINT) ?? []).length;
+};
+const openRun = (root: string, riskFloor: 'low' | 'critical', host = 'codex') => {
+  const r = createRun(root, 'S', 'task', host);
+  r.riskFloor = riskFloor;
+  saveRun(root, r);
+  return r.runId;
+};
+
+test('implementorHint: no open run suggests the table model only when the session model differs', async () => {
+  const root = repo('[models]\nmode = "apply"\n');
+  assert.equal(await hints(root, { turn_id: 't', model: 'gpt-5-other' }), 1);
+  const out: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'x', turn_id: 't', model: 'gpt-5-other' }));
+  assert.match(out.hookSpecificOutput.additionalContext, /recommended main model is model gpt-6\.2-sol with reasoning effort medium/);
+  assert.equal(await hints(root, { turn_id: 't', model: 'gpt-6.2-sol' }), 0, 'same model');
+  assert.equal(await hints(root, { turn_id: 't' }), 0, 'unknown model');
+  assert.equal(await hints(root, { model: 'claude-sonnet-5-5' }), 0, 'Claude alias contained in the model id');
+  assert.equal(await hints(root, { model: 'claude-opus-5' }), 1, 'Claude on another model');
+});
+
+test('implementorHint: off and shadow suggest nothing', async () => {
+  for (const mode of ['off', 'shadow']) assert.equal(await hints(repo(`[models]\nmode = "${mode}"\n`), { turn_id: 't', model: 'gpt-5-other' }), 0, mode);
+});
+
+test('implementorHint: an open critical run is told once, then the run remembers', async () => {
+  const root = repo('[models]\nmode = "apply"\n');
+  const id = openRun(root, 'critical');
+  const same = { turn_id: 't', model: 'gpt-6.2-sol' }; // even the "right" model gets the critical effort advice
+  const out: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'x', ...same }));
+  assert.match(out.hookSpecificOutput.additionalContext, /for this critical task the recommended main model is model gpt-6\.2-sol with reasoning effort medium/);
+  assert.equal(listRuns(root).find((r) => r.runId === id)!.implementorHint, 'critical');
+  assert.equal(await hints(root, same), 0);
+});
+
+test('implementorHint: an open non-critical run suggests nothing', async () => {
+  const root = repo('[models]\nmode = "apply"\n');
+  const id = openRun(root, 'low');
+  assert.equal(await hints(root, { turn_id: 't', model: 'gpt-5-other' }), 0);
+  assert.equal(listRuns(root).find((r) => r.runId === id)!.implementorHint, undefined);
+});
+
+test('an allow set filters a legacy override: the override is the base, the nearest allowed model replaces it', () => {
+  // astra is not allowed; terra (one step down) is nearer than luna (three steps down).
+  const root = repo('[models]\nmode = "apply"\n[models.codex]\ntester = { model = "gpt-6.2-astra", effort = "medium" }\n[models.codex.allow.tester]\nmodels = ["gpt-6-luna", "gpt-6.1-terra"]\n');
+  assert.deepEqual(propose('tester', 'codex', { riskFloor: 'low' } as Run, loadConfig(root)).proposed, { model: 'gpt-6.1-terra', effort: 'medium' });
+});
+
+test('propose returns the allowed tester pick under apply, and other hosts keep their route', () => {
+  const cfg = loadConfig(repo('[models]\nmode = "apply"\n[models.claude.allow.tester]\nmodels = ["opus"]\n'));
+  assert.deepEqual(propose('tester', 'claude-code', { riskFloor: 'low' } as Run, cfg).proposed, { model: 'opus', effort: 'medium' });
+  assert.deepEqual(propose('tester', 'claude-code', { riskFloor: 'critical' } as Run, cfg).proposed, { model: 'opus', effort: 'medium' });
+  assert.deepEqual(propose('tester', 'codex', { riskFloor: 'low' } as Run, cfg).proposed, { model: 'gpt-6-luna', effort: 'high' });
+});
+
+test('implementorHint suggests the allowed implementor model, and nothing once that model is in use', async () => {
+  const root = repo('[models]\nmode = "apply"\n[models.codex.allow.implementor]\nmodels = ["gpt-6-luna"]\n');
+  const out: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'x', turn_id: 't', model: 'gpt-5-other' }));
+  assert.match(out.hookSpecificOutput.additionalContext, /recommended main model is model gpt-6-luna with reasoning effort medium/);
+  assert.equal(await hints(root, { turn_id: 't', model: 'gpt-6-luna' }), 0, 'already the allowed model');
 });

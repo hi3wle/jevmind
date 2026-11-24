@@ -8,17 +8,26 @@ import { calibrate } from './calibrate.ts';
 import { crossHost, inCodexSandbox, launchReviewer, planReviewFile, runPlanReview, runReviewer, waitPlanReview, waitReview } from './crossreview.ts';
 import { activeSessionId, decidePlan, reconcileSession, startPlan, startReview, startTests } from './team.ts';
 import { runChecks } from './checks.ts';
-import { type Config, loadConfig } from './config.ts';
+import * as prompt from '@clack/prompts';
+import { type Agent, AGENTS, type Config, globalAgents, globalConfigFile, loadConfig, saveGlobalAgents } from './config.ts';
+import { modelsCommand } from './models.ts';
 import { type HookEvent, handleHook } from './hooks.ts';
 import { planInit, uninstallProject } from './init.ts';
 import { gitRoot, isInitialized, sourceIdentity } from './project.ts';
-import { createRun, evaluate, expireAwaiting, findOpenRun, formatStatus, latestPlan, listRuns, type Run, saveRun, updateRun } from './run.ts';
-import { doctor, setup, setupStatusline, uninstallGlobal } from './setup.ts';
+import { createRun, evaluate, expireAwaiting, findOpenRun, formatStatus, latestPlan, listRuns, recordDecision, type Run, saveRun, updateRun } from './run.ts';
+import { doctor, hasCli, setup, setupStatusline, uninstallGlobal } from './setup.ts';
 import { renderStatusline, serveStatusline } from './statusline.ts';
+
+const AGENT_CHOICES = [
+  { value: 'claude-code' as Agent, label: 'Claude Code' },
+  { value: 'codex' as Agent, label: 'Codex' },
+];
 
 const HELP = `jodex — adaptive coding harness
 
-  jodex setup                 install Jodex into Claude Code and Codex (once per machine)
+  jodex setup [--agent claude,codex]
+                              choose your agents and install Jodex into them (once per machine)
+  jodex models                choose which models and efforts each step may use (re-run anytime)
   jodex setup --statusline    enable the Claude footer if no statusLine is already configured
   jodex statusline [--mcp]    native footer: Claude JSON stdin or read-only Codex MCP stdio
   jodex init [--yes] [--jev]  enable Jodex in the current git project (--jev: enable Jev decisions)
@@ -60,7 +69,7 @@ function projectRoot(): string {
 }
 
 const warnModels = (cfg: Config, out: (s: string) => void) => {
-  if (cfg.models.mode === 'apply') out('Jodex: [models] mode = apply requests planner/tester models; reviewer remains shadow.');
+  if (cfg.models.mode === 'apply') out('Jodex: [models] mode = apply requests planner, tester and reviewer models by role and risk.');
 };
 
 // The run of the session mid-turn (its own, else an unclaimed one); never another session's run.
@@ -113,8 +122,47 @@ async function main(argv: string[]) {
         if (!setupStatusline(log)) process.exitCode = 1;
         return;
       }
-      if (!setup(log)) process.exitCode = 1;
+      {
+        // --agent claude,codex | an interactive pick | the detected CLIs (no terminal).
+        const detected = AGENTS.filter((a) => hasCli(a === 'claude-code' ? 'claude' : 'codex'));
+        const given = rest[rest.indexOf('--agent') + 1];
+        let agents: Agent[] = globalAgents() ?? (detected.length ? detected : AGENTS);
+        if (flag('--agent')) {
+          const names = (given ?? '').split(',').map((a) => (a.trim() === 'claude' ? 'claude-code' : a.trim()));
+          if (!names.length || names.some((a) => !AGENTS.includes(a as Agent))) fail('--agent takes claude, codex or claude,codex.');
+          agents = names as Agent[];
+        } else if (process.stdin.isTTY) {
+          const pick = await prompt.multiselect({ message: 'Which agents do you use? (space to toggle)', options: AGENT_CHOICES, initialValues: agents, required: true });
+          if (prompt.isCancel(pick)) return log('Nothing changed.');
+          agents = pick;
+        }
+        saveGlobalAgents(agents);
+        if (!setup(log, agents)) {
+          process.exitCode = 1;
+          return;
+        }
+        if (!apiKey()) {
+          let saved = false;
+          if (process.stdin.isTTY) {
+            const use = await prompt.confirm({ message: 'Use Jev (TypeSafe) decisions? You need a TypeSafe API key.', initialValue: false });
+            if (use === true) {
+              const key = await prompt.password({ message: 'Paste your TypeSafe API key' });
+              if (!prompt.isCancel(key) && key.trim()) {
+                saveKey(key);
+                saved = true;
+                log(`Saved to ${keyFile()} (mode 600). Enable Jev per project with \`jodex init --jev\`.`);
+              }
+            }
+          }
+          if (!saved) log('Jev (optional): store a TypeSafe key with `pbpaste | jodex key`.');
+        }
+        if (process.stdin.isTTY) await modelsCommand(agents, log, true, globalConfigFile());
+      }
       return;
+    case 'models': {
+      await modelsCommand(globalAgents() ?? AGENTS, log, !!process.stdin.isTTY, globalConfigFile());
+      return;
+    }
     case 'init': {
       const root = gitRoot(process.cwd()) ?? fail('Not inside a git repository; run `git init` first.');
       let useJev = flag('--jev');
@@ -124,7 +172,15 @@ async function main(argv: string[]) {
         rl.close();
         useJev = /^y(es)?$/i.test(a.trim());
       }
-      const changes = planInit(root, useJev);
+      // A new project may use other agents than the machine-wide choice.
+      let agents: Agent[] | undefined;
+      if (!flag('--yes') && process.stdin.isTTY && !isInitialized(root)) {
+        const global = globalAgents() ?? AGENTS;
+        const pick = await prompt.multiselect({ message: 'Agents used in this project', options: AGENT_CHOICES, initialValues: global, required: true });
+        if (prompt.isCancel(pick)) return log('Nothing changed.');
+        if ([...pick].sort().join() !== [...global].sort().join()) agents = pick;
+      }
+      const changes = planInit(root, useJev, agents);
       if (!changes.length) {
         registerProject(root, true);
         return log('Jodex is already enabled in this project.');
@@ -234,15 +290,10 @@ async function main(argv: string[]) {
       // Default: the latest run still without a decision, open or closed (critical runs close at review_required).
       const run = (rest[0] ? listRuns(root).find((r) => r.runId === rest[0]) : listRuns(root).findLast((r) => !r.acceptance)) ??
         fail(listRuns(root).length ? 'No run waiting for a decision.' : 'No Jodex runs in this checkout yet. Runs stay in the checkout where the agent worked (each git worktree has its own).');
-      const identity = sourceIdentity(root);
-      run.acceptance = { decision: cmd === 'accept' ? 'accepted' : cmd === 'reject' ? 'rejected' : 'discarded', at: new Date().toISOString(), identity };
-      run.open = false;
-      // Acceptance satisfies a required human review for this source only; the status is recomputed.
-      const result = evaluate(run, loadConfig(root), identity);
-      run.completion = { status: result.status, identity, at: run.acceptance.at };
+      const result = recordDecision(run, loadConfig(root), sourceIdentity(root), cmd === 'accept' ? 'accepted' : cmd === 'reject' ? 'rejected' : 'discarded');
       saveRun(root, run);
       refreshBoard();
-      return log(`Run ${run.runId} ${run.acceptance.decision} and closed.\n${formatStatus(run, result)}`);
+      return log(`Run ${run.runId} ${run.acceptance!.decision} and closed.\n${formatStatus(run, result)}`);
     }
     case 'key': {
       let raw = '';

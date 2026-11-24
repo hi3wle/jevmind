@@ -63,7 +63,7 @@ const rel = (root: string, p: string) => path.relative(root, p).split(path.sep).
 
 function launch(role: Role, briefFile: string, brief: string, host?: string | null, requested?: ModelPair): string {
   const routed = requested?.model ? host === 'claude-code'
-    ? `- Claude Code: Agent tool with ${JSON.stringify({ subagent_type: `jodex:${role}`, model: requested.model })}.`
+    ? `- Claude Code: Agent tool with ${JSON.stringify({ subagent_type: `jodex:${role}`, model: requested.model, effort: requested.effort ?? undefined })}.`
     : `- Codex: spawn_agent with ${JSON.stringify({ model: requested.model, reasoning_effort: requested.effort ?? undefined, fork_turns: 'none' })}; use the default agent type and put the brief in its task message.` : null;
   return [
     `Launch the ${role} subagent now and pass it the brief below verbatim (also saved in ${briefFile}).`,
@@ -187,34 +187,18 @@ function sessionFile(root: string, run: Run): SessionData | null {
   return s ? { id, ...s } : null;
 }
 
-// D6 proposal for a role attempt: the configured level (default L1), L2 on a critical floor.
-// Off/shadow retain P1 proposals; apply routes planner/tester only.
+// D6 proposal for a role attempt: the role's route, its critical tier on a critical floor.
+// Shadow records it; apply also requests it at launch.
 export function propose(role: Role, host: string | null, run: Run, cfg: Config): { proposed: ModelPair | null; policy: string | null; reason: string | null } {
-  const { mode, roles, levels } = cfg.models;
-  if (mode === 'off' || (host !== 'claude-code' && host !== 'codex')) return { proposed: null, policy: null, reason: null };
-  if (mode === 'apply' && role !== 'reviewer') {
-    const level = role === 'planner' ? 'L2' : host === 'claude-code' && run.riskFloor === 'critical' ? 'L1' : 'L0';
-    return { proposed: levels[host][level], policy: 'launch-v1', reason: `${role} on ${host}, ${run.riskFloor} floor: ${level}` };
-  }
-  let level = roles[role] ?? 'L1';
-  const reason: string[] = [];
-  if (level === 'L0' && role !== 'tester') {
-    reason.push(`L0 is for the tester only; ${role} uses L1`);
-    level = 'L1';
-  }
-  if (run.riskFloor === 'critical') {
-    reason.push('critical floor');
-    level = 'L2';
-  } else reason.push(`role level ${level}`);
-  if (mode === 'apply') reason.push('reviewer remains shadow');
-  return { proposed: levels[host][level], policy: 'levels-v1', reason: reason.join('; ') };
+  if (cfg.models.mode === 'off' || (host !== 'claude-code' && host !== 'codex')) return { proposed: null, policy: null, reason: null };
+  const tier = run.riskFloor === 'critical' ? 'critical' : 'normal';
+  return { proposed: cfg.models.routes[host][role][tier], policy: 'routes-v1', reason: `${role} on ${host}, ${run.riskFloor} floor: ${tier}` };
 }
 
 const NOT_REQUESTED: ModelPair = { model: null, effort: null }; // the host's default
 function addAttempt(run: Run, cfg: Config, role: Role, key: string, since: string, host: string | null, launch: 'detached' | 'subagent', requested: ModelPair) {
   const proposal = propose(role, host, run, cfg);
-  if (cfg.models.mode === 'apply' && role !== 'reviewer' && proposal.proposed)
-    requested = { ...proposal.proposed, effort: host === 'claude-code' ? null : proposal.proposed.effort };
+  if (cfg.models.mode === 'apply' && proposal.proposed) requested = proposal.proposed;
   run.attempts = [...(run.attempts ?? []), { role, key, since, host, launch, ...proposal, requested, observed: { model: null, effort: null, source: null }, mismatch: 'unknown' }];
   return requested;
 }
@@ -257,7 +241,7 @@ export function startReview(root: string, run: Run, cfg: Config, sameHost = fals
   const host = sameHost ? null : crossHost(run, cfg.review.crossProvider);
   review.reviewer = { host: host ?? ((run.host as Host | null) ?? 'claude-code'), mode: host ? 'cross' : 'subagent', model: null };
   // Frozen here: the detached reviewer launches with exactly this, whatever the config says later.
-  addAttempt(run, cfg, 'reviewer', round, review.startedAt, review.reviewer.host, host ? 'detached' : 'subagent', host === 'claude-code' ? { model: cfg.review.claudeModel, effort: null } : NOT_REQUESTED);
+  const requested = addAttempt(run, cfg, 'reviewer', round, review.startedAt, review.reviewer.host, host ? 'detached' : 'subagent', host === 'claude-code' ? { model: cfg.review.claudeModel, effort: null } : NOT_REQUESTED);
   run.reviews = [...(run.reviews ?? []), review];
   run.awaiting = { role: 'reviewer', since: review.startedAt };
   const brief = `${rolePrompt('reviewer')}
@@ -274,7 +258,7 @@ End your reply with one fenced \`\`\`json block containing the ReviewResult with
   review.briefFile = writeBrief(root, run, `${round}-reviewer-brief.md`, brief);
   if (host)
     return { ok: true, text: `${round}: cross-provider review by ${host === 'codex' ? 'Codex' : 'Claude Code'} (read-only, fresh session). Do not launch a subagent. Run \`jodex review wait\` now; it can take several minutes and prints the result.` };
-  return { ok: true, text: launch('reviewer', review.briefFile, brief) };
+  return { ok: true, text: launch('reviewer', review.briefFile, brief, review.reviewer.host, requested) };
 }
 
 export function startPlan(root: string, run: Run, cfg: Config): { ok: boolean; text: string } {

@@ -6,6 +6,9 @@
     "PreToolUse": [
       { "matcher": "*", "hooks": [{ "type": "command", "command": "jodex hook", "timeout": 30 }] }
     ],
+    "PostToolUse": [
+      { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "jodex hook", "timeout": 30 }] }
+    ],
     "SubagentStop": [
       { "hooks": [{ "type": "command", "command": "jodex hook", "timeout": 30 }] }
     ],

@@ -4,12 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { refreshBoard } from './board.ts';
 import { loadConfig } from './config.ts';
-import { attemptFor, latestReview, listRuns, type Run, updateRun } from './run.ts';
+import { attemptFor, latestReview, listRuns, type ModelPair, type Run, updateRun } from './run.ts';
 import { hasCli } from './setup.ts';
 import { mergeRoleResult, type Observation } from './hooks.ts';
-import { recordSubagent, runDir } from './team.ts';
+import { propose, recordSubagent, runDir } from './team.ts';
 
 export type Host = 'claude-code' | 'codex';
+// The reviewer model when none was requested: `[review] claude_model` for Claude, the host default for Codex.
+const reviewerDefault = (host: Host, cfg: ReturnType<typeof loadConfig>): ModelPair => ({ model: host === 'claude-code' ? cfg.review.claudeModel : null, effort: null });
 const CLI: Record<Host, string> = { 'claude-code': 'claude', codex: 'codex' };
 const REVIEW_TIMEOUT_MS = 15 * 60 * 1000;
 
@@ -23,18 +25,19 @@ export function crossHost(run: Run, enabled: boolean): Host | null {
 
 // Read-only reviewer profiles. Claude: read tools only, no MCP, no settings, hooks or session
 // (the profile tested in v3.2). Codex: read-only sandbox, no MCP, plugins or apps, ephemeral.
-function command(host: Host, brief: string, root: string, outFile: string, claudeModel: string): { cmd: string; args: string[] } {
+function command(host: Host, brief: string, root: string, outFile: string, pair: ModelPair): { cmd: string; args: string[] } {
+  const effort = pair.effort ? (host === 'claude-code' ? ['--effort', pair.effort] : ['-c', `model_reasoning_effort="${pair.effort}"`]) : [];
   if (host === 'claude-code')
     return {
       cmd: 'claude',
-      args: ['-p', brief, '--model', claudeModel, '--permission-mode', 'dontAsk', '--tools', 'Read,Glob,Grep', '--allowedTools', 'Read', 'Glob', 'Grep',
+      args: ['-p', brief, '--model', pair.model ?? 'sonnet', ...effort, '--permission-mode', 'dontAsk', '--tools', 'Read,Glob,Grep', '--allowedTools', 'Read', 'Glob', 'Grep',
         '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--setting-sources', '', '--settings', '{"disableAllHooks":true}',
         '--no-session-persistence', '--output-format', 'json'],
     };
   return {
     cmd: 'codex',
     args: ['exec', '--sandbox', 'read-only', '--ephemeral', '--skip-git-repo-check', '-c', 'mcp_servers={}', '--disable', 'plugins', '--disable', 'apps',
-      '-C', root, '-o', outFile, brief],
+      ...(pair.model ? ['--model', pair.model] : []), ...effort, '-C', root, '-o', outFile, brief],
   };
 }
 
@@ -73,9 +76,9 @@ export function launchReviewer(root: string, run: Run, script: string): boolean 
 type CliResult = { cmd: string; message: string; observed: Observation; cost: number | null; elapsedMs: number; error: string };
 
 // Runs the other provider's CLI on a brief, read-only, and reports what it said and which model ran.
-function runCli(host: Host, brief: string, root: string, claudeModel: string, name: string): CliResult {
+function runCli(host: Host, brief: string, root: string, pair: ModelPair, name: string): CliResult {
   const outFile = path.join(os.tmpdir(), `jodex-${name}.txt`);
-  const { cmd, args } = command(host, brief, root, outFile, claudeModel);
+  const { cmd, args } = command(host, brief, root, outFile, pair);
   const t0 = Date.now();
   const r = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: REVIEW_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, JODEX_DISABLE: '1' } });
   let message = '';
@@ -120,7 +123,7 @@ export async function runReviewer(root: string, runId: string, round: string | u
   const cfg = loadConfig(root);
   const attempt = attemptFor(run, 'reviewer', review.startedAt);
   const brief = fs.readFileSync(path.join(root, review.briefFile!), 'utf8');
-  const out = runCli(review.reviewer.host, brief, root, attempt?.requested.model ?? cfg.review.claudeModel, `review-${runId}-${review.round}`);
+  const out = runCli(review.reviewer.host, brief, root, attempt?.requested.model ? attempt.requested : reviewerDefault(review.reviewer.host, cfg), `review-${runId}-${review.round}`);
   // Re-read: the worker's hooks may have saved the run while the reviewer worked.
   const fresh = find();
   const target = fresh && latestReview(fresh);
@@ -160,7 +163,8 @@ Report each issue as BLOCKING, IMPORTANT or MINOR with file:line evidence, then 
 ## Inputs
 - Original requirement: ${run.request || '(not recorded)'}
 - Plan: ${plan.file}`;
-  const out = runCli(host, brief, root, cfg.review.claudeModel, `plan-review-${runId}-${n}`);
+  const routed = cfg.models.mode === 'apply' ? propose('reviewer', host, run, cfg).proposed : null;
+  const out = runCli(host, brief, root, routed?.model ? routed : reviewerDefault(host, cfg), `plan-review-${runId}-${n}`);
   const by = `${host === 'codex' ? 'Codex' : 'Claude Code'}${out.observed.model ? ` (${out.observed.model})` : ''}`;
   fs.writeFileSync(planReviewFile(root, run, n), `# Plan review by ${by}\n\n${out.message.trim() || `The reviewer failed: ${out.error}`}\n`);
 }

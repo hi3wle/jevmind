@@ -58,6 +58,7 @@ test('3, 4: the worker shell cannot write while locked, and no agent can accept'
   assert.deepEqual(await handleHook(bash(root, 'jodex status')), {});
   assert.deepEqual(await handleHook(bash(root, 'git status')), {});
   assert.ok(denied(await handleHook(bash(root, 'jodex accept'))));
+  for (const c of ['npx jodex@latest setup', 'npx @hi3wle/jodex@latest accept']) assert.ok(denied(await handleHook(bash(root, c))), c);
   assert.ok(denied(await handleHook(bash(root, 'bash -c "jodex accept"'))), 'quoting does not hide a developer-only command');
 });
 
@@ -263,10 +264,10 @@ test('doctor: Codex hooks cache and trust state are read from CODEX_HOME', async
     }
     const key = (e: string) => `"jodex@jodex:hooks/codex-hooks.json:${e}:0:0" = { trusted_hash = "sha256:x" }`;
     const toml = (events: string[]) => fs.writeFileSync(path.join(home, 'config.toml'), `model = "x"\n[hooks.state]\n${events.map(key).join('\n')}\n`);
-    toml(['user_prompt_submit', 'pre_tool_use', 'stop']);
+    toml(['user_prompt_submit', 'pre_tool_use', 'post_tool_use', 'stop']);
     assert.equal(codexHooksState(), 'not trusted: subagent_stop; open codex, run /hooks and trust Jodex');
-    toml(['user_prompt_submit', 'pre_tool_use', 'subagent_stop', 'stop']);
-    assert.equal(codexHooksState(), 'trusted 4/4 (hooks/codex-hooks.json)');
+    toml(['user_prompt_submit', 'pre_tool_use', 'post_tool_use', 'subagent_stop', 'stop']);
+    assert.equal(codexHooksState(), 'trusted 5/5 (hooks/codex-hooks.json)');
     fs.appendFileSync(path.join(cache, 'hooks/codex-hooks.json'), '\n');
     assert.match(codexHooksState(), /^cached hooks\/codex-hooks\.json differs from source/);
   } finally {

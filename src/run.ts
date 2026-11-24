@@ -99,6 +99,7 @@ export type Run = {
   corrections?: number; // correction rounds started after changes_required (budget: 1)
   correctingAfter?: string | null; // round whose blockers the current correction addresses
   stopBlocks: number; // times the Stop gate sent an unsupported finish back
+  implementorHint?: 'critical'; // the critical-tier implementor model was suggested once for this run
   open: boolean;
   createdAt: string;
   updatedAt: string;
@@ -291,15 +292,29 @@ export function evaluate(run: Run, cfg: Config, identity: string): { status: Com
         : required.every((g) => g.state === 'satisfied')
           ? 'verified'
           : 'review_required';
-  const next = nextStep(run, gates);
+  const next = nextStep(run, gates, identity);
   // Whether the next step is the agent's (the run stays open) or the developer's.
   return { status, gates, next, agentNext: next !== null && next !== MISSING_CHECKS_NEXT && !/developer/.test(next) };
 }
 
+// The developer's decision on a run: from `jodex accept|reject|discard` or the Claude Code question dialog.
+export function recordDecision(run: Run, cfg: Config, identity: string, decision: 'accepted' | 'rejected' | 'discarded') {
+  run.acceptance = { decision, at: new Date().toISOString(), identity };
+  run.open = false;
+  // Acceptance satisfies a required human review for this source only; the status is recomputed.
+  const result = evaluate(run, cfg, identity);
+  run.completion = { status: result.status, identity, at: run.acceptance.at };
+  return result;
+}
+
+// The approval question the agent asks in Claude Code; the PostToolUse hook records the developer's pick.
+export const acceptQuestion = (run: Run, identity: string) => `Jodex run ${run.runId} @${identity.slice(0, 8)}: accept this change?`;
+export const ACCEPT_QUESTION = /Jodex run (\d{8}-[0-9a-f]+) @([0-9a-f]{8})/;
+
 export const MISSING_CHECKS_NEXT = 'ask the developer to configure checks in .jodex/config.toml, then run `jodex check`';
 
 // The one thing the worker should do next; null when nothing is left for the agent.
-function nextStep(run: Run, gates: Gate[]): string | null {
+function nextStep(run: Run, gates: Gate[], identity: string): string | null {
   const pending = (g: string) => gates.some((x) => x.gate === g && x.required && x.state !== 'satisfied');
   if (run.awaiting) return `wait for the ${run.awaiting.role} subagent to finish`;
   const plan = latestPlan(run);
@@ -321,7 +336,10 @@ function nextStep(run: Run, gates: Gate[]): string | null {
       return `the cross-provider reviewer failed (${(review.error ?? '').slice(0, 120)}): run \`jodex review start\` to retry, or \`jodex review start --same-host\` for a same-host reviewer subagent`;
     return 'run `jodex review start` and follow what it prints';
   }
-  if (pending('human_review')) return 'report the status; the developer reviews and runs `jodex accept`';
+  if (pending('human_review'))
+    return run.host === 'claude-code'
+      ? `report the status, then ask the developer with AskUserQuestion: question "${acceptQuestion(run, identity)}", header "Jodex", options "Accept", "Reject" and "Review the diff first" (leave answers empty); or the developer runs \`jodex accept\``
+      : 'report the status; the developer reviews and runs `jodex accept`';
   return null;
 }
 

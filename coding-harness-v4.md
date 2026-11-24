@@ -525,7 +525,7 @@ The router never selects a mode the matrix marks unsupported. It reports the lim
 
 | Command | Effect |
 |---|---|
-| `jodex setup` | `npm link` the CLI; for each host found, add the checkout as a plugin marketplace and install `jodex@jodex` with the host's own commands; tell the Codex user to trust the hooks via `/hooks`; idempotent. Host config is changed only by the host CLIs, which also undo it (`jodex uninstall`). Jev key storage arrives in M3 |
+| `jodex setup` | from a git checkout, `npm link` the CLI; from a packaged copy (`npx jodex@latest setup`), `npm install -g` that exact version and register the global copy; ask which agents the developer uses (`--agent claude,codex`, an interactive multi-select pre-checked with the detected CLIs, or the detected CLIs without a terminal) and save them as `agents` in `~/.jodex/config.toml`; offer to store the Jev key when none is stored; for each chosen host found, add the checkout as a plugin marketplace and install `jodex@jodex` with the host's own commands; tell the Codex user to trust the hooks via `/hooks`; idempotent. Host config is changed only by the host CLIs, which also undo it (`jodex uninstall`). Jev key storage arrives in M3 |
 | `jodex init` | detect languages and test commands; write `.jodex/config.toml`; add the managed AGENTS.md block and `CLAUDE.md` import; write no project-level role or hook files (M0: both hosts load them globally); add `.jodex/runs/` and `decisions.jsonl` to `.gitignore`; ask for data-sharing consent; show the diff before writing |
 | `jodex doctor` | capability matrix (§9.5) |
 | `jodex board [--open]` | write the local dashboard `~/.jodex/board/board.html` from the runs of every project registered by `init` (`~/.jodex/projects.json`). It is also refreshed after each Stop, check and accept/reject. The dashboard shows runs, verified rate, Stop-gate catches, time, risk and status per project and host |
@@ -694,7 +694,7 @@ M2 shipped without an MCP server. Changes from §4–§9:
 
 ## 17. Completion as built (2026-11-20): cross-provider review, D2, calibration
 
-**Cross-provider review is the default reviewer** (`[review] cross_provider = true`): Claude Code's work is reviewed by Codex, and Codex's work by Claude Code.
+**Cross-provider review is the default reviewer** when both agents are in use (`[review] cross_provider = true` and `agents`, from the project config, else `~/.jodex/config.toml`, else both, include Claude Code and Codex): Claude Code's work is reviewed by Codex, and Codex's work by Claude Code. With one agent the reviewer is a same-host subagent.
 - `jodex review start` writes the brief. The worker then runs `jodex review wait`.
 - The `PreToolUse` hook for that command starts the other CLI as a detached process. Hooks run outside the host sandbox, and Codex's `workspace-write` sandbox has no network, so this is the only place it can start.
 - `review wait` launches it itself as a fallback, and returns after at most 100 s so it fits a default Bash tool timeout.
@@ -728,14 +728,36 @@ These can be added if logs show a need.
 - **Detached reviewer:** it gets its round when spawned, launches with the request frozen at `review start`, and is claimed once by an exclusive marker file. A late or duplicate worker never touches another round.
 - **`[models]`:**
   - `mode = off | shadow | apply`. A missing section means off; new project configs are written with `apply`.
-  - `apply` requests native planner/tester models at launch; reviewer proposals remain shadow and reviewer/implementor launches stay unchanged. `status` / `check` explain this scope.
-  - Apply routing: planner uses Claude Opus / Codex Astra high; tester uses Codex Luna high at every risk, Claude Haiku for low/elevated and Sonnet for critical. These select the corresponding configured tiers (planner L2; tester Codex L0, Claude L0/L1). Role-level overrides still govern shadow proposals, not the apply table.
-  - Launch is a native tool handoff: Claude Agent gets `subagent_type` and `model`; Codex `spawn_agent` gets `model`, `reasoning_effort` when specified, and `fork_turns=none`. Claude has no per-call effort field, so requested effort stays null. Unsupported native arguments/models must be reported without launching an inherited fallback. Unknown hosts and empty models fail before awaiting a role. A request is not proof the host launched it; observed attribution remains evidence-based.
-  - In shadow, `[models.roles]` sets a role's level: `L0` (tester only), `L1` (default) or `L2`. A critical floor proposes `L2`.
-  - `[models.claude]` and `[models.codex]` override a level's `{model, effort}`. Defaults: haiku, sonnet, opus and gpt-6-luna, gpt-6.2-sol, gpt-6.2-astra, all at effort high.
+  - `apply` requests the role's model and effort at launch for the planner, tester and reviewer; `shadow` only records the same proposal. "Critical" means the run's risk floor is `critical`; every other run uses the normal tier.
+
+    | Role | Claude Code: normal → critical | Codex: normal → critical |
+    |---|---|---|
+    | Planner | opus medium → opus high | gpt-6.2-astra medium → high |
+    | Implementor (suggested only) | sonnet medium → opus medium | gpt-6.2-sol medium (every run) |
+    | Tester | haiku medium → sonnet medium | gpt-6-luna high → gpt-6.2-sol medium |
+    | Reviewer | sonnet medium → opus medium | gpt-6.2-sol medium → gpt-6.2-astra medium |
+
+    Developer rule (mandatory): effort high only for the planner and the Codex tester on Luna (cheap enough at high); every other role stays at medium, and a critical run moves it to a stronger model instead, except the Codex implementor, which stays on gpt-6.2-sol medium for every run. Basis (vendor docs): medium for scoped day-to-day work; keep the lightest setting that meets the quality bar. No vendor publishes a per-role table: this mapping is Jodex's.
+  - Launch is a native tool handoff: Claude Agent gets `subagent_type`, `model` and `effort` (per-call effort needs Claude Code 2.1.292+); Codex `spawn_agent` gets `model`, `reasoning_effort` and `fork_turns=none`. A cross-provider reviewer runs `claude -p --model <alias> --effort <level>` or `codex exec --model <model> -c model_reasoning_effort="<level>"`, frozen at `review start`. Under apply the table replaces `[review] claude_model`. Unsupported native arguments/models must be reported without launching an inherited fallback. A request is not proof the host launched it; observed attribution remains evidence-based.
+  - The implementor is the developer's own session, so Jodex only suggests its row: in the prompt context of a task's first prompt when the session model differs, and once when a run turns critical (session effort is unknown). Never mid-task: switching drops the prompt cache.
+  - `[models.claude]` and `[models.codex]` override a cell: `<role> = { model, effort }` for normal runs, `<role>_critical` for critical ones. The old `L0`/`L1`/`L2` keys and `[models.roles]` are ignored.
+  - **Allowed models and efforts per step.**
+    - `[models.<claude|codex>.allow.<role>] models = [...], efforts = [...]` limits what Jodex may request for that step. A missing field means no limit.
+    - Precedence per step: the project `.jodex/config.toml`, then `~/.jodex/config.toml`, then no limit.
+    - Jodex keeps its recommendation when it is allowed. Otherwise it takes the nearest allowed value in this order: haiku < sonnet < opus < fable; gpt-6-luna < gpt-6.1-terra < gpt-6.2-sol < gpt-6.2-astra; low < medium < high < xhigh. On a tie it takes the cheaper value for normal runs and the stronger value for critical runs.
+    - A single allowed value is always used. A free-text model is used only when no known model is allowed. A high effort the user allows is kept.
+    - `jodex models` can be re-run, and is also offered at the end of `jodex setup`:
+      1. It shows the table with the reason for each step.
+      2. The user chooses Use recommended, or Customize some steps.
+      3. Customize: choose the steps, then the allowed models and efforts for each step. The lists are pre-checked with the current limits, and each pick shows what the step will run.
+      4. Review, with changed cells marked: Save, Edit another step, Reset to recommended, or Cancel (nothing is saved).
+    - Without a terminal it prints the table and a config example. With `[models]` mode off, limits are not read.
+    - `jodex doctor` prints the effective table.
+    - An invalid allow entry is an invalid configuration: hooks fail closed and name the file.
 - **Lazy collaborative run:** when Jev recommends collaborative mode (no `collab:` prefix), no run opens at prompt time. It opens and locks at the first in-repo write, or at the first shell command that is not reading, a `jodex` command or exactly one of the project's configured `[checks]` commands (nothing is guessed from tool names or flags). Commands are read quote-aware: operators inside quotes neither split nor reject a command, and redirection to `/dev/null` is allowed. `sed -n N[,M]p file` counts as reading.
 - **Reviewer brief:** live host/provider acceptance and developer-only evidence are the developer's gates; the reviewer judges the code, tests and supplied evidence and does not return `insufficient_evidence` for them.
 - **`jodex doctor`** reports whether the cached Codex plugin's hooks file matches the source and whether Codex trusts every Jodex hook (after a refresh, untrusted hooks show as "Failed").
+- **Approval dialog (Claude Code):** when human review is pending, `Next:` asks the agent to show `AskUserQuestion` with the question `Jodex run <runId> @<identity8>: accept this change?` (Accept, Reject, Review the diff first). A PostToolUse hook reads the developer's pick from the tool response and records it like `jodex accept|reject`, only for that run, only if undecided, and only if the source identity still matches. PreToolUse denies such a question that already carries answers, so the agent cannot answer it. Codex keeps the command.
 - **Codex sandbox:** `jodex review wait` and `jodex review plan` never launch the reviewer from inside the Codex sandbox (`CODEX_SANDBOX`); they say the hook did not start it and point to `/hooks` trust.
 - **Outside the repository:**
   - Temp paths (`os.tmpdir()`, `$TMPDIR`, `/tmp`) are ignored.

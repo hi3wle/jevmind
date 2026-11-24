@@ -23,12 +23,10 @@ See [coding-harness-v4.md](coding-harness-v4.md) §16–§17 for what was built 
 Requires Node ≥ 22.18, git, and Claude Code and/or Codex.
 
 ```sh
-git clone https://github.com/hi3wle/jodex-harness.git jodex && cd jodex
-npm ci && npm run build
-node plugin/dist/jodex.mjs setup   # once per machine
+npx jodex@latest setup             # once per machine; run it again to update
 ```
 
-`setup` links the `jodex` command onto your PATH. It then installs the Jodex plugin into each host it finds, using the host's own marketplace commands. For Codex, open `codex`, run `/hooks`, and trust the Jodex hooks once (again after an update changes them). Codex hooks run `jodex hook` from `PATH`, because Codex 0.171.0 leaves plugin-root placeholders in hook commands unexpanded; start Codex where `command -v jodex` succeeds.
+`setup` installs that version of `jodex` globally, so hooks call the installed command and never download at run time. It asks which agents you use (Claude Code, Codex or both; arrow keys and space, pre-checked with the ones it finds, or `--agent claude,codex`), saves the choice in `~/.jodex/config.toml` and installs the Jodex plugin into those agents with their own marketplace commands. With one agent, every role runs on it (Claude: planner Opus, tester Haiku or Sonnet for critical risk, same-host reviewer; Codex: planner Astra, tester Luna, same-host reviewer); with both, each reviews the other's work. If no TypeSafe key is stored, it offers to save one for Jev. `jodex init` asks again only to override the agents for that project. For Codex, open `codex`, run `/hooks`, and trust the Jodex hooks once (again after an update changes them). Codex hooks run `jodex hook` from `PATH`, because Codex 0.171.0 leaves plugin-root placeholders in hook commands unexpanded; start Codex where `command -v jodex` succeeds. Run `jodex setup --statusline` with the installed command, not through `npx`.
 
 ```sh
 cd /path/to/your/project           # must be a git repository
@@ -45,7 +43,7 @@ claude                             # or: codex — then prompt as usual
    - An unsupported "done" is sent back once with the real gates.
    - A second stop always goes through, so the agent cannot loop.
    - Once the agent reports the status, the run ends. The next edit starts a new run, so a later task never inherits an earlier task's files or risk.
-4. **Risk and review:** a critical path, a `review:`/`collab:` prompt prefix, or Jev's recommendation puts the run in review or collaborative mode. The reviewer is the other provider and read-only. Critical runs also need your `jodex accept`.
+4. **Risk and review:** a critical path, a `review:`/`collab:` prompt prefix, or Jev's recommendation puts the run in review or collaborative mode. The reviewer is the other provider and read-only. Critical runs also need your approval: in Claude Code the agent asks in a dialog (Accept, Reject, Review the diff first); in Codex, or any time, run `jodex accept`.
 5. **Dangerous commands:** `rm -rf ~`, `git push --force`, `git reset --hard` and `git clean -f` are always denied. Unusual commands are judged by Jev.
 
 | Command | Purpose |
@@ -70,7 +68,7 @@ Development: `npm run typecheck`, `npm test`, `npm run build`.
 
 ## Live board and model routing
 
-New projects start with `mode = "apply"` under `[models]` in `.jodex/config.toml`. Jodex requests Opus on Claude or Astra high on Codex for planning. For testing, it requests Luna high on Codex, and Haiku on Claude (Sonnet for critical risk). Reviewer and implementor keep their host settings.
+New projects start with `mode = "apply"` under `[models]` in `.jodex/config.toml`. Each role gets a model at effort medium; only the planner goes to high, on critical runs. A critical run moves the other roles to a stronger model instead. Claude: planner Opus, tester Haiku (Sonnet when critical), reviewer Sonnet (Opus when critical). Codex: planner Astra, tester Luna high (Sol medium when critical), reviewer Sol (Astra when critical). Your own session is the implementor, so Jodex only suggests its model (Sonnet, Opus when critical; Sol medium on every run) at the start of a task. Full table: coding-harness-v4.md §17. To limit which models and efforts each step may use, run `jodex models`. It is also offered at the end of setup, and you can run it again anytime. Keep the recommendation, or pick the allowed models and efforts for each step, review them, and save. Jodex then chooses within your limits.
 
 Set `mode = "off"` to use host defaults, or `"shadow"` to record proposals only. Running `jodex init` again preserves existing settings. Older configs without `[models]` use host defaults.
 
@@ -94,6 +92,14 @@ For the optional terminal footer, see the [Claude Code and Codex setup guide](do
 The v3.2 instruction pack still works as documented in the [archived README](docs/history/v3.2/README.md), within its tested fixture scope. It is not the v4 product.
 
 ## Develop this repository
+
+Install from a checkout instead of npm (`setup` then links the checkout onto your PATH):
+
+```sh
+git clone https://github.com/hi3wle/jodex-harness.git jodex && cd jodex
+npm ci && npm run build
+node plugin/dist/jodex.mjs setup
+```
 
 [AGENTS.md](AGENTS.md) defines the engineering policy and the approved-plan workflow. The workflow runs three sequential Codex roles from `.codex/agents/`:
 

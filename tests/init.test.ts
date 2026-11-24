@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
+import { parse } from 'smol-toml';
 import { detectChecks, planInit, uninstallProject, withBlock, withoutBlock } from '../src/init.ts';
-import { loadConfig } from '../src/config.ts';
+import { loadConfig, renderConfig } from '../src/config.ts';
 import { tempRepo } from './helpers.ts';
 
 const read = (root: string, f: string) => (fs.existsSync(path.join(root, f)) ? fs.readFileSync(path.join(root, f), 'utf8') : null);
@@ -49,6 +50,21 @@ test('init preserves existing model settings, including legacy configs', () => {
     changes.forEach((change) => change.apply());
     assert.equal(read(root, '.jodex/config.toml'), config);
   }
+});
+
+test('agents key is written only when the project chooses agents', () => {
+  const withAgents = parse(renderConfig({ test: 'npm test' }, false, ['codex'])) as Record<string, unknown>;
+  assert.deepEqual(withAgents.agents, ['codex']);
+  assert.equal('agents' in (parse(renderConfig({ test: 'npm test' })) as object), false);
+  const root = tempRepo();
+  const [config] = planInit(root, false, ['codex']);
+  assert.match(config.summary, /agents codex/);
+  config.apply();
+  assert.deepEqual(loadConfig(root).agents, ['codex']);
+  assert.equal(loadConfig(root).review.crossProvider, false);
+  const plain = tempRepo();
+  planInit(plain).forEach((c) => c.apply());
+  assert.equal('agents' in (parse(read(plain, '.jodex/config.toml')!) as object), false);
 });
 
 test('check detection', () => {

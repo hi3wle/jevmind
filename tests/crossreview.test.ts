@@ -24,6 +24,7 @@ const id = (brief.match(/"snapshotId": "([0-9a-f]+)"/) || [])[1];
 const r = '\`\`\`json\\n' + JSON.stringify({ snapshotId: id, status: '${status}', findings: [] }) + '\\n\`\`\`';`;
 fs.writeFileSync(path.join(bin, 'codex'), `#!/usr/bin/env node
 if (process.argv[2] === '--version') { console.log('codex-cli fake'); process.exit(0); }
+if (process.env.FAKE_ARGV_LOG) require('fs').appendFileSync(process.env.FAKE_ARGV_LOG, JSON.stringify(process.argv.slice(2).filter((a) => !a.includes('Snapshot ID'))) + '\\n');
 if (process.argv.includes('read-only') === false) process.exit(3);
 ${result('no_blocking_findings')}
 if (!process.env.FAKE_CODEX_NO_BANNER) console.error('model: gpt-fake\\nreasoning effort: high');
@@ -31,6 +32,7 @@ require('fs').writeFileSync(process.argv[process.argv.indexOf('-o') + 1], 'Revie
 `);
 fs.writeFileSync(path.join(bin, 'claude'), `#!/usr/bin/env node
 if (process.argv[2] === '--version') { console.log('claude fake'); process.exit(0); }
+if (process.env.FAKE_ARGV_LOG) require('fs').appendFileSync(process.env.FAKE_ARGV_LOG, JSON.stringify(process.argv.slice(2).filter((a) => !a.includes('Snapshot ID'))) + '\\n');
 if (!process.argv.includes('Read,Glob,Grep')) process.exit(3);
 ${result('no_blocking_findings')}
 const model = process.argv[process.argv.indexOf('--model') + 1];
@@ -52,7 +54,7 @@ const find = (root: string, runId: string) => listRuns(root).find((r) => r.runId
 const reviewerAttempt = (r: Run, round = 'R0') => r.attempts!.find((a) => a.role === 'reviewer' && a.key === round)!;
 
 // A cross review started by `worker`, saved and not yet run.
-async function reviewing(root: string, worker: Worker): Promise<Run> {
+async function reviewing(root: string, worker: Worker, cross = true): Promise<Run> {
   const extra = worker === 'codex' ? { turn_id: 't' } : {};
   const ev = (name: string, more: object = {}) => ({ hook_event_name: name, session_id: 'S', cwd: root, ...extra, ...more });
   await handleHook(ev('UserPromptSubmit', { prompt: 'review: change a' }));
@@ -60,12 +62,14 @@ async function reviewing(root: string, worker: Worker): Promise<Run> {
   fs.writeFileSync(path.join(root, 'src/a.js'), `export const a = ${Math.random()};\n`);
   const run = listRuns(root)[0];
   runChecks(root, loadConfig(root), run, () => {});
-  assert.match(startReview(root, run, loadConfig(root)).text, /cross-provider review/);
+  const text = startReview(root, run, loadConfig(root)).text;
+  if (cross) assert.match(text, /cross-provider review/);
+  else assert.doesNotMatch(text, /cross-provider review/);
   saveRun(root, run);
   return run;
 }
 
-test('apply leaves same-host and detached reviewer launch requests unchanged', () => {
+test('apply requests the routed reviewer pair for same-host and detached reviews', () => {
   for (const sameHost of [true, false]) {
     const root = repo('claude_model = "haiku"');
     fs.appendFileSync(path.join(root, '.jodex/config.toml'), '\n[models]\nmode = "apply"\n');
@@ -79,10 +83,71 @@ test('apply leaves same-host and detached reviewer launch requests unchanged', (
     const out = startReview(root, run, cfg, sameHost);
     assert.equal(out.ok, true, out.text);
     const attempt = reviewerAttempt(run);
-    assert.deepEqual(attempt.requested, sameHost ? { model: null, effort: null } : { model: 'haiku', effort: null });
+    // Codex worker: the same-host reviewer is Codex; the cross reviewer is Claude, whose table pair beats claude_model.
+    assert.deepEqual(attempt.requested, sameHost ? { model: 'gpt-6.2-sol', effort: 'medium' } : { model: 'sonnet', effort: 'medium' });
     assert.equal(attempt.launch, sameHost ? 'subagent' : 'detached');
     assert.equal(attempt.observed.model, null);
+    if (sameHost) {
+      assert.match(out.text, /"model":"gpt-6.2-sol"/);
+      assert.match(out.text, /"reasoning_effort":"medium"/);
+    }
   }
+});
+
+test('same-host Claude reviewer under apply: launch text carries model and effort', () => {
+  const root = repo();
+  fs.appendFileSync(path.join(root, '.jodex/config.toml'), '\n[models]\nmode = "apply"\n');
+  const cfg = loadConfig(root);
+  const run = createRun(root, null, 'review changed source');
+  run.host = 'claude-code';
+  run.mode = 'review';
+  run.touched = ['src/a.js'];
+  fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 2;\n');
+  runChecks(root, cfg, run, () => {});
+  const out = startReview(root, run, cfg, true);
+  assert.equal(out.ok, true, out.text);
+  assert.deepEqual(reviewerAttempt(run).requested, { model: 'sonnet', effort: 'medium' });
+  assert.match(out.text, /"subagent_type":"jodex:reviewer"/);
+  assert.match(out.text, /"model":"sonnet"/);
+  assert.match(out.text, /"effort":"medium"/);
+});
+
+// argv of each fake CLI call, minus the brief.
+async function argvOf(worker: Worker, mode: 'off' | 'apply'): Promise<string[][]> {
+  const root = repo();
+  if (mode === 'apply') fs.appendFileSync(path.join(root, '.jodex/config.toml'), '\n[models]\nmode = "apply"\n');
+  const run = await reviewing(root, worker);
+  const log = path.join(root, 'argv.log');
+  process.env.FAKE_ARGV_LOG = log;
+  try {
+    await runReviewer(root, run.runId, 'R0');
+  } finally {
+    delete process.env.FAKE_ARGV_LOG;
+  }
+  return fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((a) => a[0] !== '--version');
+}
+const after = (argv: string[], flag: string) => argv[argv.indexOf(flag) + 1];
+
+test('apply: the Codex cross reviewer gets --model and the reasoning effort config', async () => {
+  const [argv] = await argvOf('claude-code', 'apply');
+  assert.equal(after(argv, '--model'), 'gpt-6.2-sol');
+  assert.ok(argv.includes('model_reasoning_effort="medium"'), argv.join(' '));
+  assert.equal(argv[argv.indexOf('model_reasoning_effort="medium"') - 1], '-c');
+});
+
+test('apply: the Claude cross reviewer gets --model and --effort', async () => {
+  const [argv] = await argvOf('codex', 'apply');
+  assert.equal(after(argv, '--model'), 'sonnet');
+  assert.equal(after(argv, '--effort'), 'medium');
+});
+
+test('off: the Codex cross reviewer is launched without --model or an effort; Claude keeps its alias and no --effort', async () => {
+  const [codex] = await argvOf('claude-code', 'off');
+  assert.equal(codex.includes('--model'), false);
+  assert.equal(codex.some((a) => a.includes('model_reasoning_effort')), false);
+  const [claude] = await argvOf('codex', 'off');
+  assert.equal(after(claude, '--model'), 'sonnet');
+  assert.equal(claude.includes('--effort'), false);
 });
 
 for (const [worker, reviewer] of [['claude-code', 'codex'], ['codex', 'claude-code']] as const) {
@@ -247,6 +312,37 @@ for (const [worker, by] of [['claude-code', 'Codex \\(gpt-fake\\)'], ['codex', '
     assert.deepEqual([r.plans![0].decision, r.reviews, r.attempts], [null, undefined, undefined], 'no plan decision, review round or attempt');
   });
 }
+
+// Top-level keys must come before the first table.
+const setAgents = (root: string, agents: string[]) => {
+  const file = path.join(root, '.jodex/config.toml');
+  fs.writeFileSync(file, `agents = ${JSON.stringify(agents)}\n${fs.readFileSync(file, 'utf8')}`);
+};
+
+test('a project with only Codex reviews Codex work with a same-host subagent, even with Claude installed', async () => {
+  const root = repo();
+  setAgents(root, ['codex']);
+  assert.equal(loadConfig(root).review.crossProvider, false);
+  const run = await reviewing(root, 'codex', false);
+  const r = find(root, run.runId).reviews![0];
+  assert.deepEqual([r.reviewer!.host, r.reviewer!.mode], ['codex', 'subagent']);
+  assert.equal(reviewerAttempt(find(root, run.runId)).launch, 'subagent');
+});
+
+test('a global single agent turns cross review off for projects without their own agents', async () => {
+  const globalHome = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-global-'));
+  const previous = process.env.JODEX_HOME;
+  process.env.JODEX_HOME = globalHome;
+  fs.writeFileSync(path.join(globalHome, 'config.toml'), 'agents = ["codex"]\n');
+  try {
+    const root = repo();
+    const run = await reviewing(root, 'codex', false);
+    assert.equal(reviewerAttempt(find(root, run.runId)).launch, 'subagent');
+  } finally {
+    process.env.JODEX_HOME = previous;
+    fs.rmSync(globalHome, { recursive: true, force: true });
+  }
+});
 
 test('P0c: with cross_provider = false the plan review does nothing', () => {
   const root = repo('cross_provider = false');

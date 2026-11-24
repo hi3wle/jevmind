@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'smol-toml';
+import { type Agent, AGENTS, applyAllow, DEFAULT_ROUTES, globalAgents, globalAllow, loadConfig } from './config.ts';
+import { routeTable } from './models.ts';
 import { gitRoot, isInitialized } from './project.ts';
 
 // The repository root: the bundle lives at plugin/dist/jodex.mjs.
@@ -63,22 +65,36 @@ export function setupStatusline(log: (s: string) => void, remove = false): boole
 
 // Installs Jodex through each host's own plugin marketplace, so the host owns
 // install, update and removal; nothing edits host config files directly.
-export function setup(log: (s: string) => void): boolean {
-  const root = repoRoot();
+export function setup(log: (s: string) => void, agents: Agent[] = AGENTS): boolean {
+  let root = repoRoot();
   if (!fs.existsSync(path.join(root, 'plugin', 'dist', 'jodex.mjs'))) {
     log('plugin/dist/jodex.mjs is missing: run `npm install && npm run build` in the Jodex checkout first.');
     return false;
   }
-  if (!run({ label: 'link `jodex` onto PATH (npm link)', cmd: 'npm', args: ['link', '--no-audit', '--no-fund'] }, log)) return false;
+  if (fs.existsSync(path.join(root, '.git'))) {
+    if (!run({ label: 'link `jodex` onto PATH (npm link)', cmd: 'npm', args: ['link', '--no-audit', '--no-fund'] }, log)) return false;
+  } else {
+    // A packaged copy (npx cache): install this exact version globally, so hooks keep calling the
+    // installed `jodex` and the hosts register the global copy, not a cache that npm may clear.
+    const { name, version } = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    if (!run({ label: `install ${name}@${version} globally`, cmd: 'npm', args: ['install', '-g', '--no-audit', '--no-fund', `${name}@${version}`] }, log)) return false;
+    root = path.join(spawnSync('npm', ['root', '-g'], { encoding: 'utf8' }).stdout.trim(), name);
+    if (!fs.existsSync(path.join(root, 'plugin', 'dist', 'jodex.mjs'))) {
+      log(`The global install was not found at ${root}.`);
+      return false;
+    }
+  }
   const steps: Step[] = [];
-  if (hasCli('claude')) {
+  if (!agents.includes('claude-code')) log('skip Claude Code: not selected');
+  else if (hasCli('claude')) {
     steps.push(
       { label: 'Claude Code: add marketplace', cmd: 'claude', args: ['plugin', 'marketplace', 'add', root], ok: /already/i },
       { label: 'Claude Code: refresh marketplace', cmd: 'claude', args: ['plugin', 'marketplace', 'update', 'jodex'] },
       { label: 'Claude Code: install plugin', cmd: 'claude', args: ['plugin', 'install', 'jodex@jodex'], ok: /already/i },
     );
   } else log('skip Claude Code: `claude` not found');
-  if (hasCli('codex')) {
+  if (!agents.includes('codex')) log('skip Codex: not selected');
+  else if (hasCli('codex')) {
     steps.push(
       { label: 'Codex: add marketplace', cmd: 'codex', args: ['plugin', 'marketplace', 'add', root], ok: /already/i },
       { label: 'Codex: install plugin', cmd: 'codex', args: ['plugin', 'add', 'jodex@jodex'], ok: /already/i },
@@ -160,7 +176,16 @@ export function doctor(cwd: string, log: (s: string) => void) {
   log(`Codex hooks     ${codexHooksState()}`);
   log('Inline footer   Claude: jodex setup --statusline; Codex: Custom status line in /experimental, restart, select Jodex in /statusline (selection not checkable here)');
   log('Roles           planner/reviewer read-only and tester test-only, enforced by hooks (not an OS sandbox)');
-  log('Review          cross-provider by default: Claude Code work reviewed by Codex and the reverse');
   const root = gitRoot(cwd);
+  try {
+    const cfg = root && isInitialized(root) ? loadConfig(root) : null;
+    const agents = cfg?.agents ?? globalAgents() ?? AGENTS;
+    log(`Agents          ${agents.join(', ')}; review ${agents.length > 1 ? 'cross-provider (Claude Code work reviewed by Codex and the reverse)' : 'by a same-host reviewer'}`);
+    const routes = cfg && cfg.models.mode !== 'off' ? cfg.models.routes : applyAllow(DEFAULT_ROUTES, globalAllow());
+    if (cfg?.models.mode === 'off') log('Models          [models] mode = off in this project: host defaults');
+    else for (const host of agents) log(`Models (${host})\n  ${routeTable(host, routes).join('\n  ')}\n  * = differs from the recommendation; change with: jodex models`);
+  } catch (e) {
+    log(`Config          cannot be read: ${(e as Error).message.split('\n')[0]}`);
+  }
   log(`project         ${root ? `${root}; ${isInitialized(root) ? 'initialized' : 'not initialized (run jodex init)'}` : 'not a git repository'}`);
 }

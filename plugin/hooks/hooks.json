@@ -6,6 +6,9 @@
     "PreToolUse": [
       { "matcher": "*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/jodex.mjs\" hook", "timeout": 30 }] }
     ],
+    "PostToolUse": [
+      { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/jodex.mjs\" hook", "timeout": 30 }] }
+    ],
     "SubagentStop": [
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/jodex.mjs\" hook", "timeout": 30 }] }
     ],
