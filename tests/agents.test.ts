@@ -8,13 +8,13 @@ import { AGENTS, DEFAULT_ROUTES, globalAgents, globalAllow, loadConfig, saveGlob
 import { handleHook } from '../src/hooks.ts';
 import { tempRepo } from './helpers.ts';
 
-// Each test gets its own machine-wide Jodex home, so a global config.toml cannot leak between tests.
+// Each test gets its own machine-wide Jevmind home, so a global config.toml cannot leak between tests.
 function home(t: TestContext): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-agents-home-'));
-  const previous = process.env.JODEX_HOME;
-  process.env.JODEX_HOME = dir;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-agents-home-'));
+  const previous = process.env.JEVMIND_HOME;
+  process.env.JEVMIND_HOME = dir;
   t.after(() => {
-    process.env.JODEX_HOME = previous;
+    process.env.JEVMIND_HOME = previous;
     fs.rmSync(dir, { recursive: true, force: true });
   });
   return dir;
@@ -23,8 +23,8 @@ function home(t: TestContext): string {
 // Top-level keys (agents) must come before the first table, so they go on top.
 function project(top = ''): string {
   const root = tempRepo();
-  fs.mkdirSync(path.join(root, '.jodex'));
-  fs.writeFileSync(path.join(root, '.jodex/config.toml'), `${top}[risk]\ncritical = []\n[checks]\ntest = "true"\n`);
+  fs.mkdirSync(path.join(root, '.jevmind'));
+  fs.writeFileSync(path.join(root, '.jevmind/config.toml'), `${top}[risk]\ncritical = []\n[checks]\ntest = "true"\n`);
   return root;
 }
 
@@ -53,7 +53,7 @@ test('no global file and no project key means both agents with cross review', (t
 test('cross_provider = false keeps both agents but turns cross review off', (t) => {
   home(t);
   const root = project();
-  fs.appendFileSync(path.join(root, '.jodex/config.toml'), '[review]\ncross_provider = false\n');
+  fs.appendFileSync(path.join(root, '.jevmind/config.toml'), '[review]\ncross_provider = false\n');
   const cfg = loadConfig(root);
   assert.deepEqual(cfg.agents, AGENTS);
   assert.equal(cfg.review.crossProvider, false);
@@ -63,7 +63,7 @@ test('an invalid agent name throws, in the project and in the global file', (t) 
   home(t);
   assert.throws(() => loadConfig(project('agents = ["gemini"]\n')), /agents in .*config\.toml must be a non-empty list/);
   assert.throws(() => loadConfig(project('agents = []\n')), /must be a non-empty list/);
-  fs.writeFileSync(path.join(process.env.JODEX_HOME!, 'config.toml'), 'agents = "codex"\n');
+  fs.writeFileSync(path.join(process.env.JEVMIND_HOME!, 'config.toml'), 'agents = "codex"\n');
   assert.throws(() => loadConfig(project()), /agents in .*config\.toml must be a non-empty list/);
 });
 
@@ -102,7 +102,7 @@ test('hooks fail closed and name the global file when it is malformed or invalid
     assert.equal(denied.hookSpecificOutput.permissionDecision, 'deny');
     assert.ok(reason.includes(file), reason);
     assert.match(reason, what);
-    assert.doesNotMatch(reason, /\.jodex\/config\.toml/);
+    assert.doesNotMatch(reason, /\.jevmind\/config\.toml/);
     assert.deepEqual(await pre('Read', { file_path: path.join(root, 'README.md') }), {});
   }
 });
@@ -115,7 +115,7 @@ test('a project agents key means a malformed global file is never read', (t) => 
 
 // Appends [models] (and any allow tables) to the project config; models are read only when mode is not off.
 function routing(root: string, text: string) {
-  fs.appendFileSync(path.join(root, '.jodex/config.toml'), `[models]\nmode = "apply"\n${text}`);
+  fs.appendFileSync(path.join(root, '.jevmind/config.toml'), `[models]\nmode = "apply"\n${text}`);
   return loadConfig(root).models.routes;
 }
 
@@ -148,7 +148,7 @@ test('mode off uses the host defaults and never reads a malformed global file', 
   assert.equal(cfg.models.mode, 'off');
   assert.deepEqual(cfg.models.routes, DEFAULT_ROUTES);
   // The same malformed file is read once the models are on.
-  fs.appendFileSync(path.join(root, '.jodex/config.toml'), '[models]\nmode = "apply"\n');
+  fs.appendFileSync(path.join(root, '.jevmind/config.toml'), '[models]\nmode = "apply"\n');
   assert.throws(() => loadConfig(root), /is not valid TOML/);
 });
 
@@ -163,7 +163,7 @@ test('an invalid allow entry throws and names the file it is in', (t) => {
   for (const [text, what] of bad) {
     assert.throws(
       () => routing(project(), text),
-      (e: Error) => e.message.includes('models.codex.allow.') && e.message.includes('.jodex/config.toml') && what.test(e.message),
+      (e: Error) => e.message.includes('models.codex.allow.') && e.message.includes('.jevmind/config.toml') && what.test(e.message),
       text,
     );
   }

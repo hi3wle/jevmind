@@ -3,6 +3,6 @@
   "createdClaude": true,
   "addedImport": false,
   "addedIgnore": [
-    ".jodex/decisions.jsonl"
+    ".jevmind/decisions.jsonl"
   ]
 }

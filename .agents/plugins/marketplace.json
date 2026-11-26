@@ -1,9 +1,9 @@
 {
-  "name": "jodex",
-  "interface": { "displayName": "Jodex" },
+  "name": "jevmind",
+  "interface": { "displayName": "Jevmind" },
   "plugins": [
     {
-      "name": "jodex",
+      "name": "jevmind",
       "source": { "source": "local", "path": "./plugin" },
       "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
       "category": "Productivity"

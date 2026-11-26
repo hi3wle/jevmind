@@ -17,8 +17,8 @@ import { tempRepo } from './helpers.ts';
 
 function repo(checks = 'test = "true"') {
   const root = tempRepo({ 'src/a.js': 'export const a = 1;\n' });
-  fs.mkdirSync(path.join(root, '.jodex'));
-  fs.writeFileSync(path.join(root, '.jodex/config.toml'), `[risk]\ncritical = []\n[checks]\n${checks}\n[review]\ncross_provider = false\n`);
+  fs.mkdirSync(path.join(root, '.jevmind'));
+  fs.writeFileSync(path.join(root, '.jevmind/config.toml'), `[risk]\ncritical = []\n[checks]\n${checks}\n[review]\ncross_provider = false\n`);
   return root;
 }
 const ev = (root: string, name: string, extra: object = {}) => ({ hook_event_name: name, session_id: 'S', cwd: root, ...extra });
@@ -43,7 +43,7 @@ test('1: quoted or abbreviated write flags are not read-only', () => {
 test('2: a reviewer stays read-only after it is no longer awaited', async () => {
   const root = repo();
   await reviewing(root);
-  const sub = { agent_id: 'R1', agent_type: 'jodex:reviewer' };
+  const sub = { agent_id: 'R1', agent_type: 'jevmind:reviewer' };
   await handleHook(bash(root, 'git status', sub)); // first sighting registers it
   const r = run0(root);
   expireAwaiting(r, 'cancelled');
@@ -55,11 +55,11 @@ test('3, 4: the worker shell cannot write while locked, and no agent can accept'
   const root = repo();
   await reviewing(root);
   assert.ok(denied(await handleHook(bash(root, 'echo overwritten > src/a.js'))));
-  assert.deepEqual(await handleHook(bash(root, 'jodex status')), {});
+  assert.deepEqual(await handleHook(bash(root, 'jevmind status')), {});
   assert.deepEqual(await handleHook(bash(root, 'git status')), {});
-  assert.ok(denied(await handleHook(bash(root, 'jodex accept'))));
-  for (const c of ['npx jodex@latest setup', 'npx @hi3wle/jodex@latest accept']) assert.ok(denied(await handleHook(bash(root, c))), c);
-  assert.ok(denied(await handleHook(bash(root, 'bash -c "jodex accept"'))), 'quoting does not hide a developer-only command');
+  assert.ok(denied(await handleHook(bash(root, 'jevmind accept'))));
+  for (const c of ['npx jevmind@latest setup', 'npx @hi3wle/jevmind@latest accept']) assert.ok(denied(await handleHook(bash(root, c))), c);
+  assert.ok(denied(await handleHook(bash(root, 'bash -c "jevmind accept"'))), 'quoting does not hide a developer-only command');
 });
 
 test('5: a shell edit made before `review start` is in the review scope; a later one makes it stale', async () => {
@@ -117,11 +117,11 @@ test('stale source and stale command evidence block review with the check handof
     fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 2;\n');
     runChecks(root, loadConfig(root), r, () => {});
     if (stale === 'source') fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 3;\n');
-    else fs.writeFileSync(path.join(root, '.jodex/config.toml'), '[risk]\ncritical = []\n[checks]\ntest = "false"\n[review]\ncross_provider = false\n');
+    else fs.writeFileSync(path.join(root, '.jevmind/config.toml'), '[risk]\ncritical = []\n[checks]\ntest = "false"\n[review]\ncross_provider = false\n');
     const updated = loadConfig(root);
     const result = evaluate(r, updated, sourceIdentity(root));
     assert.equal(result.status, 'review_required', stale);
-    assert.equal(result.next, 'run `jodex check`', stale);
+    assert.equal(result.next, 'run `jevmind check`', stale);
     assert.equal(startReview(root, r, updated).ok, false, stale);
   }
 });
@@ -160,7 +160,7 @@ test('R1: brace expansion and textconv are not read-only', () => {
 test('R1: agents cannot uninstall or accept, even quoted', async () => {
   const root = repo();
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'x' }));
-  for (const c of ["jodex 'accept'", 'jodex discard', 'jodex uninstall --project', 'node plugin/dist/jodex.mjs accept']) assert.ok(denied(await handleHook(bash(root, c))), c);
+  for (const c of ["jevmind 'accept'", 'jevmind discard', 'jevmind uninstall --project', 'node plugin/dist/jevmind.mjs accept']) assert.ok(denied(await handleHook(bash(root, c))), c);
 });
 
 test('R1: helper subagents and the tester shell cannot write in team mode', async () => {
@@ -173,12 +173,12 @@ test('R1: helper subagents and the tester shell cannot write in team mode', asyn
   const r = run0(root);
   startTests(root, r, loadConfig(root));
   saveRun(root, r);
-  const tester = { agent_id: 'T', agent_type: 'jodex:tester' };
+  const tester = { agent_id: 'T', agent_type: 'jevmind:tester' };
   assert.ok(denied(await handleHook(bash(root, 'echo overwritten > src/a.js', tester))));
   assert.deepEqual(await handleHook(bash(root, 'npm test', tester)), {});
 });
 
-test('R1: a run opened by `jodex check` reviews the newest session\'s shell edits', async () => {
+test('R1: a run opened by `jevmind check` reviews the newest session\'s shell edits', async () => {
   const { createRun } = await import('../src/run.ts');
   const root = repo();
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'review: w' }));
@@ -216,14 +216,14 @@ test('R1: quoted Authorization and secret env values are redacted', () => {
 
 test('locked worker: decorated workflow commands pass, file writes do not', async () => {
   const { allowedWhileLocked } = await import('../src/hooks.ts');
-  for (const c of ['jodex review wait 2>&1; echo "exit=$?"', 'jodex check 2>&1 | tail -6', 'jodex review wait 2>&1 | head -30', 'git status | head'])
+  for (const c of ['jevmind review wait 2>&1; echo "exit=$?"', 'jevmind check 2>&1 | tail -6', 'jevmind review wait 2>&1 | head -30', 'git status | head'])
     assert.equal(allowedWhileLocked(c), true, c);
   // Observed denies from the MR retrospective: quoted operators and /dev/null are not writes.
-  for (const c of ['cat x 2>/dev/null | head', 'jodex status | grep -E "plan|Next"', 'sed -n 1,60p file', 'jodex plan revise "reason with ; or /tmp"', 'jodex review wait 2>/dev/null'])
+  for (const c of ['cat x 2>/dev/null | head', 'jevmind status | grep -E "plan|Next"', 'sed -n 1,60p file', 'jevmind plan revise "reason with ; or /tmp"', 'jevmind review wait 2>/dev/null'])
     assert.equal(allowedWhileLocked(c), true, c);
-  for (const c of ['jodex check > out.txt', 'jodex status; echo x > src/a.js', 'jodex check && $(rm -rf src)', 'npm test', 'jodex accept'])
+  for (const c of ['jevmind check > out.txt', 'jevmind status; echo x > src/a.js', 'jevmind check && $(rm -rf src)', 'npm test', 'jevmind accept'])
     assert.equal(allowedWhileLocked(c), false, c);
-  const quotedOrSed = ['jodex status | grep "$(rm x)"', "echo 'a' > f", 'grep "unterminated', 'jodex status & touch x', 'jodex status | grep "`rm x`"'];
+  const quotedOrSed = ['jevmind status | grep "$(rm x)"', "echo 'a' > f", 'grep "unterminated', 'jevmind status & touch x', 'jevmind status | grep "`rm x`"'];
   for (const c of [...quotedOrSed, 'sed -n -i 1,60p f', "sed -n '1w o' f", 'sed -n 1,60p -i f']) assert.equal(allowedWhileLocked(c), false, c);
 });
 
@@ -241,7 +241,7 @@ test('R0 blocker: an escaped quote outside quotes opens no quote, so the `;` sti
 
 test('R1 blocker: ANSI-C and locale quoting outside quotes are denied; a quoted `$` is not', async () => {
   const { allowedWhileLocked } = await import('../src/hooks.ts');
-  for (const c of ["jodex status $'\\''; touch src/x # '", 'jodex status $"x"; touch y']) {
+  for (const c of ["jevmind status $'\\''; touch src/x # '", 'jevmind status $"x"; touch y']) {
     assert.equal(allowedWhileLocked(c), false, c);
     assert.equal(isReadOnlyCommand(c), false, c);
   }
@@ -256,16 +256,16 @@ test('doctor: Codex hooks cache and trust state are read from CODEX_HOME', async
   const saved = process.env.CODEX_HOME;
   process.env.CODEX_HOME = home;
   try {
-    assert.equal(codexHooksState(), 'plugin not cached (run jodex setup)');
-    const cache = path.join(home, 'plugins/cache/jodex/jodex/0.1.0');
+    assert.equal(codexHooksState(), 'plugin not cached (run jevmind setup)');
+    const cache = path.join(home, 'plugins/cache/jevmind/jevmind/0.1.0');
     for (const f of ['.codex-plugin/plugin.json', 'hooks/codex-hooks.json']) {
       fs.mkdirSync(path.dirname(path.join(cache, f)), { recursive: true });
       fs.copyFileSync(path.join(plugin, f), path.join(cache, f));
     }
-    const key = (e: string) => `"jodex@jodex:hooks/codex-hooks.json:${e}:0:0" = { trusted_hash = "sha256:x" }`;
+    const key = (e: string) => `"jevmind@jevmind:hooks/codex-hooks.json:${e}:0:0" = { trusted_hash = "sha256:x" }`;
     const toml = (events: string[]) => fs.writeFileSync(path.join(home, 'config.toml'), `model = "x"\n[hooks.state]\n${events.map(key).join('\n')}\n`);
     toml(['user_prompt_submit', 'pre_tool_use', 'post_tool_use', 'stop']);
-    assert.equal(codexHooksState(), 'not trusted: subagent_stop; open codex, run /hooks and trust Jodex');
+    assert.equal(codexHooksState(), 'not trusted: subagent_stop; open codex, run /hooks and trust Jevmind');
     toml(['user_prompt_submit', 'pre_tool_use', 'post_tool_use', 'subagent_stop', 'stop']);
     assert.equal(codexHooksState(), 'trusted 5/5 (hooks/codex-hooks.json)');
     fs.appendFileSync(path.join(cache, 'hooks/codex-hooks.json'), '\n');
@@ -305,7 +305,7 @@ test('R3: a cancelled reviewer stays a reviewer when a tester stage starts; late
   startTests(root, r, loadConfig(root));
   saveRun(root, r);
   const stale = run0(root);
-  const reviewerWrite = ev(root, 'PreToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(root, 'test/a.test.js') }, agent_id: 'R', agent_type: 'jodex:reviewer' });
+  const reviewerWrite = ev(root, 'PreToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(root, 'test/a.test.js') }, agent_id: 'R', agent_type: 'jevmind:reviewer' });
   assert.ok(denied(await handleHook(reviewerWrite)), 'typed reviewer is not the tester');
   // A result tied to an older wait is discarded.
   mergeRoleResult(root, stale, 'tester', 'not-the-current-token');

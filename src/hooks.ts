@@ -4,8 +4,8 @@ import { refreshBoard } from './board.ts';
 import { type Config, loadConfig, type RiskFloor } from './config.ts';
 import { appendDecision, D1_THRESHOLDS, type Decision, decideIntake, newDecisionId } from './decisions.ts';
 import { jev, redact } from './jev.ts';
-import { changedPaths, gitRoot, identityOf, isInitialized, jodexDir, type Manifest, manifest, readJson, sourceIdentity, writeJson } from './project.ts';
-import { isJodexPath, isOutsideRoot, isTaskNotification, isTempPath, maxFloor, riskFloor, writePaths } from './rules.ts';
+import { changedPaths, gitRoot, identityOf, isInitialized, jevmindDir, type Manifest, manifest, readJson, sourceIdentity, writeJson } from './project.ts';
+import { isJevmindPath, isOutsideRoot, isTaskNotification, isTempPath, maxFloor, riskFloor, writePaths } from './rules.ts';
 import { ACCEPT_QUESTION, attemptFor, canRaise, createRun, evaluate, type Role, findOpenRun, formatStatus, latestPlan, latestReview, listRuns, mismatchOf, type Mode, type ModelPair, raiseMode, recordDecision, type Run, saveRun, touch, updateRun, type Usage, writeLock } from './run.ts';
 import { maybeAutoCalibrate } from './calibrate.ts';
 import { gateCommand } from './commands.ts';
@@ -34,20 +34,20 @@ export type HookEvent = {
 const hostOf = (ev: HookEvent) => (ev.turn_id ? 'codex' : 'claude-code');
 
 type Session = { host?: string; model?: string | null; lastPrompt: string; promptAt?: string; baseline: Manifest | null;decisionId?: string | null; jevRiskFloor?: RiskFloor | null; mode?: Mode; modeSource?: string };
-const sessionsDir = (root: string) => path.join(jodexDir(root), 'sessions');
+const sessionsDir = (root: string) => path.join(jevmindDir(root), 'sessions');
 const sessionFile = (root: string, id: string) => path.join(sessionsDir(root), `${id.replace(/[^\w-]/g, '_')}.json`);
 const readSession = (root: string, id: string) => readJson<Session | null>(sessionFile(root, id), null);
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 const D1_TIMEOUT_MS = 2500; // each hook is a fresh process: Jev cold start ~1.05 s, spikes past 1.5 s seen live
 
-export const STATUS_LINE = 'Jodex status:';
+export const STATUS_LINE = 'Jevmind status:';
 
-const CONTEXT = `Jodex harness is active in this project. If you change files: run \`jodex check\` before you finish and follow the "Next:" line it prints (it may ask for a planner, tester or reviewer subagent). End your final reply with the line "${STATUS_LINE} <status>", using the status that \`jodex check\` prints. Never claim success that status does not support. Files under .jodex/ are managed by Jodex; do not edit them.`;
+const CONTEXT = `Jevmind harness is active in this project. If you change files: run \`jevmind check\` before you finish and follow the "Next:" line it prints (it may ask for a planner, tester or reviewer subagent). End your final reply with the line "${STATUS_LINE} <status>", using the status that \`jevmind check\` prints. Never claim success that status does not support. Files under .jevmind/ are managed by Jevmind; do not edit them.`;
 
 // "review: ..." or "collab: ..." at the start of a prompt asks for that mode explicitly.
-// Jodex commands the worker may run while it is locked out of editing.
-const WORKFLOW = /^jodex\s+(status|resume|check|cancel|review\s+(start|wait)|plan\s+(start|accept|revise|block)|test\s+start)\b/;
-// Agents decorate commands (`jodex review wait 2>&1; echo "exit=$?"`): every chained part must be a
+// Jevmind commands the worker may run while it is locked out of editing.
+const WORKFLOW = /^jevmind\s+(status|resume|check|cancel|review\s+(start|wait)|plan\s+(start|accept|revise|block)|test\s+start)\b/;
+// Agents decorate commands (`jevmind review wait 2>&1; echo "exit=$?"`): every chained part must be a
 // workflow command, a read-only command or an echo, and nothing may redirect into a file.
 // Quoted text is masked first, so operators inside quotes neither split nor reject a command;
 // redirection to /dev/null writes nothing.
@@ -77,19 +77,19 @@ function freeBeforePlan(cmd: string, checks: string[]): boolean {
   return checks.includes(cmd.trim()) || everyPart(cmd, (s, raw) => lockedPart(s) || checks.includes(raw));
 }
 // The worker's cross review of a plan awaiting its challenge (not a helper subagent's).
-const PLAN_REVIEW = /^\s*jodex\s+review\s+plan\s*(2>&1)?\s*$/;
+const PLAN_REVIEW = /^\s*jevmind\s+review\s+plan\s*(2>&1)?\s*$/;
 const planPending = (run: Run) => !run.awaiting && run.mode === 'collaborative' && latestPlan(run)?.decision === null;
 
 const OVERRIDE = /^\s*(solo|review|collab(?:orative)?)\s*:/i;
 
 export async function handleHook(ev: HookEvent): Promise<object> {
-  if (process.env.JODEX_DISABLE) return {}; // inside a Jodex reviewer process
+  if (process.env.JEVMIND_DISABLE) return {}; // inside a Jevmind reviewer process
   const root = gitRoot(ev.cwd);
   if (!root || !isInitialized(root)) return {};
   try {
     loadConfig(root);
   } catch (e) {
-    const reason = `Jodex: configuration cannot be read or is invalid (${(e as Error).message.split('\n')[0]}). Ask the developer to repair it.`;
+    const reason = `Jevmind: configuration cannot be read or is invalid (${(e as Error).message.split('\n')[0]}). Ask the developer to repair it.`;
     if (ev.hook_event_name === 'PreToolUse') {
       const tool = ev.tool_name ?? '';
       const command = String(ev.tool_input?.command ?? '');
@@ -116,7 +116,7 @@ export async function handleHook(ev: HookEvent): Promise<object> {
   }
 }
 
-// The implementor is the developer's own session: Jodex can only suggest its model. Only at a task's
+// The implementor is the developer's own session: Jevmind can only suggest its model. Only at a task's
 // first prompt, or once when its run turns critical: switching mid-task drops the prompt cache.
 function implementorHint(root: string, cfg: Config, session: Session, open: Run | null): string {
   const host = session.host;
@@ -132,14 +132,14 @@ function implementorHint(root: string, cfg: Config, session: Session, open: Run 
     saveRun(root, open);
   }
   const how = host === 'claude-code' ? `\`/model ${pick.model}\`${pick.effort ? ` and \`/effort ${pick.effort}\`` : ''}` : `model ${pick.model}${pick.effort ? ` with reasoning effort ${pick.effort}` : ''}`;
-  return `\nJodex: for this ${critical ? 'critical ' : ''}task the recommended main model is ${how}. Tell the developer once before you start; do not switch it yourself.`;
+  return `\nJevmind: for this ${critical ? 'critical ' : ''}task the recommended main model is ${how}. Tell the developer once before you start; do not switch it yourself.`;
 }
 
 async function onPrompt(root: string, ev: HookEvent) {
   const prompt = ev.prompt ?? '';
   if (isTaskNotification(prompt)) {
     // A background subagent's result resumes the turn after Stop dropped the turn file: restore it,
-    // so `jodex` commands still find this session's run. Not a developer prompt: no Jev, no memory.
+    // so `jevmind` commands still find this session's run. Not a developer prompt: no Jev, no memory.
     if (!readSession(root, ev.session_id)) {
       const lastPrompt = recentPrompts(root, ev.session_id).at(-1) ?? '';
       writeJson(sessionFile(root, ev.session_id), { host: hostOf(ev), model: ev.model ?? claudeModel(ev.transcript_path), lastPrompt, promptAt: new Date().toISOString(), baseline: manifest(root) } satisfies Session);
@@ -161,28 +161,28 @@ async function onPrompt(root: string, ev: HookEvent) {
     if (d.actedOn && d.action) {
       session.jevRiskFloor = d.action.riskFloor;
       if (d.action.clarify)
-        context += `\nJodex (Jev decision ${d.id}): a material requirement or business rule looks missing (p=${d.answers!.missingRule.toFixed(2)}). Ask the developer before changing files; do not invent the rule.`;
-      if (d.action.riskFloor) context += `\nJodex (Jev decision ${d.id}): this task is treated as ${d.action.riskFloor} risk.`;
+        context += `\nJevmind (Jev decision ${d.id}): a material requirement or business rule looks missing (p=${d.answers!.missingRule.toFixed(2)}). Ask the developer before changing files; do not invent the rule.`;
+      if (d.action.riskFloor) context += `\nJevmind (Jev decision ${d.id}): this task is treated as ${d.action.riskFloor} risk.`;
       if (!session.mode && (d.action.recommendedMode === 'review' || d.action.recommendedMode === 'collaborative'))
         [session.mode, session.modeSource] = [d.action.recommendedMode, 'jev'];
     }
   }
   if (session.mode === 'collaborative' && session.modeSource === 'override') {
-    // Plan before code: open the run now so `jodex plan start` has one.
+    // Plan before code: open the run now so `jevmind plan start` has one.
     writeJson(sessionFile(root, ev.session_id), session);
     const run = findOpenRun(root, ev.session_id) ?? createRun(root, ev.session_id, prompt);
     attach(run, root, ev);
     saveRun(root, run);
-    context += '\nJodex: collaborative mode. Before editing files, run `jodex plan start` and launch the planner subagent it describes.';
+    context += '\nJevmind: collaborative mode. Before editing files, run `jevmind plan start` and launch the planner subagent it describes.';
   } else if (session.mode === 'collaborative')
     // Jev's recommendation may come with a question: the run opens at the first change instead.
-    context += '\nJodex: Jev recommends collaborative mode if this task changes files: run `jodex plan start` before the first edit or any command other than reading, tests or builds. Answering questions or reading code needs no plan.';
-  else if (session.mode === 'review') context += '\nJodex: review mode. After implementing and `jodex check`, run `jodex review start` for an independent reviewer.';
+    context += '\nJevmind: Jev recommends collaborative mode if this task changes files: run `jevmind plan start` before the first edit or any command other than reading, tests or builds. Answering questions or reading code needs no plan.';
+  else if (session.mode === 'review') context += '\nJevmind: review mode. After implementing and `jevmind check`, run `jevmind review start` for an independent reviewer.';
   const open = findOpenRun(root, ev.session_id);
   context += implementorHint(root, cfg, session, open);
   if (open && !open.awaiting) {
     const left = evaluate(open, cfg, identityOf(session.baseline!));
-    if (left.agentNext) context += `\nJodex: run ${open.runId} ("${open.request.slice(0, 80)}") is still open. Next: ${left.next}. Finish it, or tell the developer why not, before starting other work.`;
+    if (left.agentNext) context += `\nJevmind: run ${open.runId} ("${open.request.slice(0, 80)}") is still open. Next: ${left.next}. Finish it, or tell the developer why not, before starting other work.`;
   }
   writeJson(sessionFile(root, ev.session_id), session);
   return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } };
@@ -231,14 +231,14 @@ function attach(run: Run, root: string, ev: HookEvent) {
   }
 }
 
-const deny = (reason: string) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `Jodex: ${reason}` } });
+const deny = (reason: string) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `Jevmind: ${reason}` } });
 
-// The developer's pick in the Claude Code dialog for a Jodex approval question. The answers come
+// The developer's pick in the Claude Code dialog for a Jevmind approval question. The answers come
 // from the host UI; PreToolUse denies a question that arrives with answers already filled in.
 function onAnswer(root: string, ev: HookEvent) {
   if (ev.tool_name !== 'AskUserQuestion' || ev.agent_id) return {};
   const answers = ev.tool_response?.answers ?? {};
-  const said = (context: string) => ({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: `Jodex: ${context}` } });
+  const said = (context: string) => ({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: `Jevmind: ${context}` } });
   for (const q of ev.tool_response?.questions ?? []) {
     const m = ACCEPT_QUESTION.exec(String(q?.question ?? ''));
     const pick = String(answers[q?.question] ?? '');
@@ -247,7 +247,7 @@ function onAnswer(root: string, ev: HookEvent) {
     const run = listRuns(root).find((r) => r.runId === m[1]);
     if (!run || run.acceptance) return said(`run ${m[1]} has no pending decision; nothing was recorded.`);
     const identity = sourceIdentity(root);
-    if (!identity.startsWith(m[2])) return said(`the source changed after the question; nothing was recorded. Run \`jodex check\` and ask again.`);
+    if (!identity.startsWith(m[2])) return said(`the source changed after the question; nothing was recorded. Run \`jevmind check\` and ask again.`);
     const result = recordDecision(run, loadConfig(root), identity, decision);
     saveRun(root, run);
     // The decided run covers the turn's edits so far: Stop must not reopen a run for them.
@@ -262,24 +262,24 @@ function onAnswer(root: string, ev: HookEvent) {
 async function onPreToolUse(root: string, ev: HookEvent) {
   const tool = ev.tool_name ?? '';
   if (tool === 'AskUserQuestion' && (ev.tool_input?.questions ?? []).some((q: any) => ACCEPT_QUESTION.test(String(q?.question ?? ''))) && Object.keys(ev.tool_input?.answers ?? {}).length)
-    return deny('a Jodex approval question must reach the developer unanswered.');
+    return deny('a Jevmind approval question must reach the developer unanswered.');
   let paths = writePaths(tool, ev.tool_input, root, ev.cwd);
   let existing = findOpenRun(root, ev.session_id);
   const cmd = String(ev.tool_input?.command ?? '');
   // Hooks run outside the host sandbox, so the cross-provider reviewer is started from here.
-  if (existing && /\bjodex\s+review\s+wait\b/.test(cmd)) launchReviewer(root, existing, process.argv[1]);
+  if (existing && /\bjevmind\s+review\s+wait\b/.test(cmd)) launchReviewer(root, existing, process.argv[1]);
   if (existing && !ev.agent_id && PLAN_REVIEW.test(cmd) && planPending(existing)) launchPlanReview(root, existing, process.argv[1]);
   const isShell = tool === 'Bash' || tool === 'shell' || tool === 'exec_command';
   // Acceptance is the developer's decision; agents may not record it.
   // Command-text matching is a guardrail, not authentication: see spec §17 (limits).
   const plain = cmd.replace(/["'\\]/g, '');
-  if (isShell && /\bjodex(@[\w.^~-]+)?(\.mjs)?\s+(accept|reject|discard|uninstall|init|key|setup)\b/.test(plain)) return deny('only the developer runs `jodex accept`, `reject`, `discard`, `uninstall`, `init`, `key` or `setup`.');
+  if (isShell && /\bjevmind(@[\w.^~-]+)?(\.mjs)?\s+(accept|reject|discard|uninstall|init|key|setup)\b/.test(plain)) return deny('only the developer runs `jevmind accept`, `reject`, `discard`, `uninstall`, `init`, `key` or `setup`.');
   // Subagents of a run get only what their role allows (enforced here, not by the prompt).
   // A reviewer or planner stays read-only after it stops being awaited (cancelled, expired).
-  // A subagent's role is fixed when first seen: Claude's `jodex:<role>` type when present, else the
+  // A subagent's role is fixed when first seen: Claude's `jevmind:<role>` type when present, else the
   // awaited role. (Codex subagents are untyped: one first seen during a tester stage counts as tester.)
   const known = ev.agent_id ? existing?.agentRoles?.[ev.agent_id] : undefined;
-  const typed = ev.agent_type?.startsWith('jodex:') ? (ev.agent_type.slice(6) as Role) : undefined;
+  const typed = ev.agent_type?.startsWith('jevmind:') ? (ev.agent_type.slice('jevmind:'.length) as Role) : undefined;
   const agentRole = ev.agent_id && existing ? (known ?? typed ?? existing.awaiting?.role) : undefined;
   if (ev.agent_id && existing && agentRole && !known) {
     existing.agentRoles = { ...(existing.agentRoles ?? {}), [ev.agent_id]: agentRole };
@@ -310,7 +310,7 @@ async function onPreToolUse(root: string, ev: HookEvent) {
       attach(existing, root, ev);
       saveRun(root, existing);
     }
-    // While the worker may not change files, its shell may only read or drive Jodex.
+    // While the worker may not change files, its shell may only read or drive Jevmind.
     const lock = !ev.agent_id && existing ? writeLock(existing) : null;
     if (lock && !allowedWhileLocked(cmd) && !(PLAN_REVIEW.test(cmd) && planPending(existing!))) return deny(lock);
     const cached = Object.keys(existing?.commandDecisions ?? {}).length;
@@ -328,7 +328,7 @@ async function onPreToolUse(root: string, ev: HookEvent) {
     return {};
   }
   paths = inside;
-  if (paths.some(isJodexPath)) return deny('files under .jodex/ are managed by Jodex; ask the developer to change them.');
+  if (paths.some(isJevmindPath)) return deny('files under .jevmind/ are managed by Jevmind; ask the developer to change them.');
   const cfg = loadConfig(root);
   const run = existing ?? createRun(root, ev.session_id, readSession(root, ev.session_id)?.lastPrompt ?? '');
   attach(run, root, ev);
@@ -358,7 +358,7 @@ function onStop(root: string, ev: HookEvent) {
   const identity = identityOf(current);
   const session = readSession(root, ev.session_id);
   // Shell writes bypass PreToolUse, so every Stop folds in what changed since the prompt,
-  // including into a run that `jodex check` opened with no touched files.
+  // including into a run that `jevmind check` opened with no touched files.
   const changed = session?.baseline ? changedPaths(session.baseline, current) : [];
   let run = findOpenRun(root, ev.session_id);
   if (!run) {
@@ -391,7 +391,7 @@ function onStop(root: string, ev: HookEvent) {
     saveRun(root, run);
     return {
       decision: 'block',
-      reason: `${formatStatus(run, result)}\n\nBefore finishing: run \`jodex check\` if a check is pending, fix failures you can fix, then end your reply with "${STATUS_LINE} ${result.status}" (or the new status \`jodex check\` prints).`,
+      reason: `${formatStatus(run, result)}\n\nBefore finishing: run \`jevmind check\` if a check is pending, fix failures you can fix, then end your reply with "${STATUS_LINE} ${result.status}" (or the new status \`jevmind check\` prints).`,
     };
   }
   // Blocked at most once per stop attempt (stop_hook_active), so the agent can never loop here.
@@ -409,9 +409,9 @@ function onStop(root: string, ev: HookEvent) {
 async function onSubagentStop(root: string, ev: HookEvent) {
   const run = findOpenRun(root, ev.session_id);
   if (!run?.awaiting) return {};
-  // Claude Code also stops internal agents (prompt suggestions, /btw); accept only the Jodex role.
+  // Claude Code also stops internal agents (prompt suggestions, /btw); accept only the Jevmind role.
   // Codex spawns generic subagents, so any subagent of this session counts there.
-  if (!ev.turn_id && ev.agent_type !== `jodex:${run.awaiting.role}`) return {};
+  if (!ev.turn_id && ev.agent_type !== `jevmind:${run.awaiting.role}`) return {};
   const token = run.awaiting.since;
   const role = run.awaiting.role;
   // A Claude subagent may deliver its reply through the SubagentHandback tool instead of a final message.

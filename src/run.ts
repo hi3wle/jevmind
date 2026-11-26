@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Config, RiskFloor } from './config.ts';
-import { jodexDir, readJson, writeJson } from './project.ts';
+import { jevmindDir, readJson, writeJson } from './project.ts';
 import { maxFloor, riskFloor } from './rules.ts';
 
 export type CompletionStatus = 'verified' | 'review_required' | 'failed_verification' | 'blocked';
@@ -40,7 +40,7 @@ export type Review = {
   reviewer?: { host: 'claude-code' | 'codex'; mode: 'cross' | 'subagent'; launchedAt?: string; model?: string | null; costUsd?: number | null; elapsedMs?: number };
 };
 
-// Model attribution per role attempt: what the policy proposed, what Jodex asked the host for, and
+// Model attribution per role attempt: what the policy proposed, what Jevmind asked the host for, and
 // what the host reported. A null field is unknown (observed) or not requested (host default).
 export type ModelPair = { model: string | null; effort: string | null };
 // Tokens a host reported for one role attempt or the worker; never estimated (null/absent: unknown).
@@ -72,7 +72,7 @@ export type Plan = {
 export type Run = {
   runId: string;
   sessionId: string | null;
-  host: string | null; // 'claude-code' | 'codex' | null when opened by `jodex check`
+  host: string | null; // 'claude-code' | 'codex' | null when opened by `jevmind check`
   model: string | null;
   request: string;
   mode: Mode;
@@ -85,7 +85,7 @@ export type Run = {
   checks: Record<string, CheckResult>;
   commandDecisions?: Record<string, boolean>; // D2 cache: normalized command -> denied
   testerOutOfScope?: string[];
-  testerStartedAt?: string; // the latest `jodex test start`
+  testerStartedAt?: string; // the latest `jevmind test start`
   testerDoneAt?: string; // the tester reported a result (not set when it was cancelled or expired)
   roleModels?: Partial<Record<Role, string>>; // legacy (before attempts): read only, for old runs
   attempts?: Attempt[];
@@ -110,7 +110,7 @@ export type Run = {
 export const CORRECTION_BUDGET = 1;
 export const PLAN_REVISION_BUDGET = 1;
 
-const runsDir = (root: string) => path.join(jodexDir(root), 'runs');
+const runsDir = (root: string) => path.join(jevmindDir(root), 'runs');
 const runFile = (root: string, id: string) => path.join(runsDir(root), `${id}.json`);
 
 export function saveRun(root: string, run: Run) {
@@ -131,7 +131,7 @@ export function listRuns(root: string, recentDays?: number): Run[] {
     .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
 }
 
-// The open run a session works on: its own, else an unclaimed one (created by `jodex check`).
+// The open run a session works on: its own, else an unclaimed one (created by `jevmind check`).
 // shortcut: one developer per project; parallel sessions in one checkout share unclaimed runs.
 export function findOpenRun(root: string, sessionId: string | null): Run | null {
   const open = listRuns(root, 14).filter((r) => r.open);
@@ -221,7 +221,7 @@ export function mismatchOf(requested: ModelPair, observed: ModelPair): boolean |
 // Why the worker may not change files right now, or null.
 export function writeLock(run: Run): string | null {
   if (run.awaiting) return `wait for the ${run.awaiting.role} subagent before changing files.`;
-  if (run.mode === 'collaborative' && (run.plans ?? []).at(-1)?.decision !== 'accept') return 'collaborative mode: get the plan accepted first (`jodex plan start`, then `jodex plan accept`).';
+  if (run.mode === 'collaborative' && (run.plans ?? []).at(-1)?.decision !== 'accept') return 'collaborative mode: get the plan accepted first (`jevmind plan start`, then `jevmind plan accept`).';
   const review = latestReview(run);
   if (review?.status === 'changes_required' && review.at && run.correctingAfter !== review.round && (run.corrections ?? 0) >= CORRECTION_BUDGET)
     return 'the correction budget is used up; report the open blockers to the developer.';
@@ -237,12 +237,12 @@ export function evaluate(run: Run, cfg: Config, identity: string): { status: Com
   // Developer acceptance counts only for the source that was accepted.
   const accepted = run.acceptance?.decision === 'accepted' && run.acceptance.identity === identity;
   const names = Object.keys(cfg.checks);
-  if (names.length === 0) gates.push({ gate: 'checks', required: true, state: 'unavailable', detail: 'no checks configured in .jodex/config.toml' });
+  if (names.length === 0) gates.push({ gate: 'checks', required: true, state: 'unavailable', detail: 'no checks configured in .jevmind/config.toml' });
   for (const name of names) {
     const r = run.checks[name];
-    if (!r) gates.push({ gate: name, required: true, check: true, state: 'pending', detail: 'not run; run `jodex check`' });
-    else if (r.identity !== identity) gates.push({ gate: name, required: true, check: true, state: 'pending', detail: 'source changed since last run; run `jodex check`' });
-    else if (r.command !== cfg.checks[name]) gates.push({ gate: name, required: true, check: true, state: 'pending', detail: 'the configured command changed since last run; run `jodex check`' });
+    if (!r) gates.push({ gate: name, required: true, check: true, state: 'pending', detail: 'not run; run `jevmind check`' });
+    else if (r.identity !== identity) gates.push({ gate: name, required: true, check: true, state: 'pending', detail: 'source changed since last run; run `jevmind check`' });
+    else if (r.command !== cfg.checks[name]) gates.push({ gate: name, required: true, check: true, state: 'pending', detail: 'the configured command changed since last run; run `jevmind check`' });
     else if (r.exitCode === 0) gates.push({ gate: name, required: true, check: true, state: 'satisfied', detail: `exit 0 on current source` });
     else gates.push({ gate: name, required: true, check: true, state: 'failed', detail: `exit ${r.exitCode} on current source` });
   }
@@ -272,14 +272,14 @@ export function evaluate(run: Run, cfg: Config, identity: string): { status: Com
     gates.push({ gate: 'review', required: false, state: 'pending', detail: `${run.riskFloor} risk (${why}); prefix a prompt with "review:" to require one` });
   }
   if (run.testerOutOfScope?.length)
-    gates.push({ gate: 'tester_scope', required: true, state: accepted ? 'satisfied' : 'pending', detail: `the tester changed non-test files (${run.testerOutOfScope.join(', ')}); the developer reviews them and runs \`jodex accept\`` });
+    gates.push({ gate: 'tester_scope', required: true, state: accepted ? 'satisfied' : 'pending', detail: `the tester changed non-test files (${run.testerOutOfScope.join(', ')}); the developer reviews them and runs \`jevmind accept\`` });
   if (cfg.risk.humanReviewRequired.includes(run.riskFloor)) {
     const ok = accepted;
-    gates.push({ gate: 'human_review', required: true, state: ok ? 'satisfied' : 'pending', detail: ok ? 'accepted by the developer' : `${run.riskFloor} risk requires the developer: \`jodex accept\` after reviewing` });
+    gates.push({ gate: 'human_review', required: true, state: ok ? 'satisfied' : 'pending', detail: ok ? 'accepted by the developer' : `${run.riskFloor} risk requires the developer: \`jevmind accept\` after reviewing` });
   }
 
   if (hasDisputed(run))
-    gates.push({ gate: 'disputed_findings', required: true, state: accepted ? 'satisfied' : 'pending', detail: 'blocking findings disputed by Jev: the developer decides (`jodex accept` or `jodex reject`)' });
+    gates.push({ gate: 'disputed_findings', required: true, state: accepted ? 'satisfied' : 'pending', detail: 'blocking findings disputed by Jev: the developer decides (`jevmind accept` or `jevmind reject`)' });
   const required = gates.filter((g) => g.required);
   // An executed failing check outranks a blocked plan (spec §7.2).
   const checkFailed = required.some((g) => g.state === 'failed' && g.check);
@@ -297,7 +297,7 @@ export function evaluate(run: Run, cfg: Config, identity: string): { status: Com
   return { status, gates, next, agentNext: next !== null && next !== MISSING_CHECKS_NEXT && !/developer/.test(next) };
 }
 
-// The developer's decision on a run: from `jodex accept|reject|discard` or the Claude Code question dialog.
+// The developer's decision on a run: from `jevmind accept|reject|discard` or the Claude Code question dialog.
 export function recordDecision(run: Run, cfg: Config, identity: string, decision: 'accepted' | 'rejected' | 'discarded') {
   run.acceptance = { decision, at: new Date().toISOString(), identity };
   run.open = false;
@@ -308,43 +308,43 @@ export function recordDecision(run: Run, cfg: Config, identity: string, decision
 }
 
 // The approval question the agent asks in Claude Code; the PostToolUse hook records the developer's pick.
-export const acceptQuestion = (run: Run, identity: string) => `Jodex run ${run.runId} @${identity.slice(0, 8)}: accept this change?`;
-export const ACCEPT_QUESTION = /Jodex run (\d{8}-[0-9a-f]+) @([0-9a-f]{8})/;
+export const acceptQuestion = (run: Run, identity: string) => `Jevmind run ${run.runId} @${identity.slice(0, 8)}: accept this change?`;
+export const ACCEPT_QUESTION = /Jevmind run (\d{8}-[0-9a-f]+) @([0-9a-f]{8})/;
 
-export const MISSING_CHECKS_NEXT = 'ask the developer to configure checks in .jodex/config.toml, then run `jodex check`';
+export const MISSING_CHECKS_NEXT = 'ask the developer to configure checks in .jevmind/config.toml, then run `jevmind check`';
 
 // The one thing the worker should do next; null when nothing is left for the agent.
 function nextStep(run: Run, gates: Gate[], identity: string): string | null {
   const pending = (g: string) => gates.some((x) => x.gate === g && x.required && x.state !== 'satisfied');
   if (run.awaiting) return `wait for the ${run.awaiting.role} subagent to finish`;
   const plan = latestPlan(run);
-  if (run.mode === 'collaborative' && !plan) return 'run `jodex plan start` and launch the planner it describes, before editing files';
+  if (run.mode === 'collaborative' && !plan) return 'run `jevmind plan start` and launch the planner it describes, before editing files';
   if (run.mode === 'collaborative' && plan && !plan.decision)
-    return `challenge the plan in ${plan.file}: \`jodex plan accept\`, \`jodex plan revise "<reason>"\` or \`jodex plan block "<reason>"\``;
-  if (gates.some((g) => g.check && g.state === 'failed')) return 'fix the failing check, then run `jodex check`';
+    return `challenge the plan in ${plan.file}: \`jevmind plan accept\`, \`jevmind plan revise "<reason>"\` or \`jevmind plan block "<reason>"\``;
+  if (gates.some((g) => g.check && g.state === 'failed')) return 'fix the failing check, then run `jevmind check`';
   if (gates.some((g) => g.gate === 'checks' && g.state === 'unavailable')) return MISSING_CHECKS_NEXT;
-  if (gates.some((g) => g.check && g.state !== 'satisfied')) return 'run `jodex check`';
+  if (gates.some((g) => g.check && g.state !== 'satisfied')) return 'run `jevmind check`';
   const review = latestReview(run);
   if (pending('review')) {
     if (review?.status === 'changes_required' && review.at) {
       if (!review.findings.some((f) => f.confirmed)) return 'report the disputed blockers to the developer, who decides';
       if ((run.corrections ?? 0) >= CORRECTION_BUDGET && run.correctingAfter !== review.round)
         return 'the correction budget is used up: report the open blockers to the developer';
-      return 'fix the confirmed blockers, run `jodex check`, then `jodex review start` for a fresh review';
+      return 'fix the confirmed blockers, run `jevmind check`, then `jevmind review start` for a fresh review';
     }
     if (review?.status === 'invalid' && review.reviewer?.mode === 'cross')
-      return `the cross-provider reviewer failed (${(review.error ?? '').slice(0, 120)}): run \`jodex review start\` to retry, or \`jodex review start --same-host\` for a same-host reviewer subagent`;
-    return 'run `jodex review start` and follow what it prints';
+      return `the cross-provider reviewer failed (${(review.error ?? '').slice(0, 120)}): run \`jevmind review start\` to retry, or \`jevmind review start --same-host\` for a same-host reviewer subagent`;
+    return 'run `jevmind review start` and follow what it prints';
   }
   if (pending('human_review'))
     return run.host === 'claude-code'
-      ? `report the status, then ask the developer with AskUserQuestion: question "${acceptQuestion(run, identity)}", header "Jodex", options "Accept", "Reject" and "Review the diff first" (leave answers empty); or the developer runs \`jodex accept\``
-      : 'report the status; the developer reviews and runs `jodex accept`';
+      ? `report the status, then ask the developer with AskUserQuestion: question "${acceptQuestion(run, identity)}", header "Jevmind", options "Accept", "Reject" and "Review the diff first" (leave answers empty); or the developer runs \`jevmind accept\``
+      : 'report the status; the developer reviews and runs `jevmind accept`';
   return null;
 }
 
 export function formatStatus(run: Run, result: { status: CompletionStatus; gates: Gate[]; next?: string | null }): string {
-  const lines = [`Jodex run ${run.runId} (${run.mode}, risk ${run.riskFloor})`, `Status: ${result.status}`];
+  const lines = [`Jevmind run ${run.runId} (${run.mode}, risk ${run.riskFloor})`, `Status: ${result.status}`];
   for (const g of result.gates) lines.push(`  ${g.state.padEnd(11)} ${g.gate}${g.required ? '' : ' (optional)'}: ${g.detail}`);
   if (result.next) lines.push(`Next: ${result.next}`);
   return lines.join('\n');

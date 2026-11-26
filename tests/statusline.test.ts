@@ -40,20 +40,20 @@ test('MCP footer advertises the native entrypoint and renders the displayed thre
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
     { jsonrpc: '2.0', method: 'notifications/initialized' },
     { jsonrpc: '2.0', id: 2, method: 'tools/list' },
-    { jsonrpc: '2.0', id: 3, method: 'resources/read', params: { uri: 'ui://jodex/footer', _meta: { 'com.openai/codex-statusline-state': { thread: { id: 'S', workspace: { cwd: root }, model: { display_name: 'Sol' }, agent: { state: 'working' } } } } } },
+    { jsonrpc: '2.0', id: 3, method: 'resources/read', params: { uri: 'ui://jevmind/footer', _meta: { 'com.openai/codex-statusline-state': { thread: { id: 'S', workspace: { cwd: root }, model: { display_name: 'Sol' }, agent: { state: 'working' } } } } } },
   ].map((r) => JSON.stringify(r)).join('\n') + '\n';
   const result = call(['statusline', '--mcp'], input);
   assert.match(result.stdout, /protocolVersion/);
   const out = result.stdout.trim().split('\n').map((line) => JSON.parse(line));
   assert.equal(out.length, 3, 'notifications get no response');
-  assert.equal(out[1].result.tools[0]._meta['openai/ui'].entrypoints[0].resourceUri, 'ui://jodex/footer');
+  assert.equal(out[1].result.tools[0]._meta['openai/ui'].entrypoints[0].resourceUri, 'ui://jevmind/footer');
   assert.match(out[2].result.contents[0].text, /Implementor: Codex/);
   assert.match(out[2].result.contents[0].text, /idle/);
   assert.equal(result.status, 0);
 });
 
 test('explicit footer setup preserves developer settings and removes only its own footer', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-statusline-settings-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-statusline-settings-'));
   const settings = path.join(home, 'settings.json');
   const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], {
     env: { ...process.env, CLAUDE_CONFIG_DIR: home }, encoding: 'utf8',
@@ -73,7 +73,7 @@ test('explicit footer setup preserves developer settings and removes only its ow
 });
 
 test('footer setup refuses a linked settings file instead of replacing the developer link', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-statusline-linked-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-statusline-linked-'));
   const target = path.join(home, 'shared.json');
   fs.writeFileSync(target, '{}\n');
   fs.symlinkSync(target, path.join(home, 'settings.json'));

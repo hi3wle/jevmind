@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-// Keep the board and project registry out of the real ~/.jodex during tests.
-process.env.JODEX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-home-'));
+// Keep the board and project registry out of the real ~/.jevmind during tests.
+process.env.JEVMIND_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-home-'));
 
 export function tempRepo(files: Record<string, string> = {}): string {
-  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-test-')));
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-test-')));
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, stdio: 'ignore' });
   git('init', '-q');
   git('config', 'user.email', 'test@example.com');
@@ -22,10 +22,10 @@ export function tempRepo(files: Record<string, string> = {}): string {
 }
 
 export function writeConfig(root: string, checks: Record<string, string>, critical = ['**/auth/**']) {
-  fs.mkdirSync(path.join(root, '.jodex'), { recursive: true });
+  fs.mkdirSync(path.join(root, '.jevmind'), { recursive: true });
   const lines = Object.entries(checks).map(([k, v]) => `${k} = ${JSON.stringify(v)}`);
   fs.writeFileSync(
-    path.join(root, '.jodex', 'config.toml'),
+    path.join(root, '.jevmind', 'config.toml'),
     `[risk]\ncritical = ${JSON.stringify(critical)}\nelevated = []\n\n[checks]\n${lines.join('\n')}\n\n[review]\ncross_provider = false\n`,
   );
 }

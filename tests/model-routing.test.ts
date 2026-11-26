@@ -1,4 +1,4 @@
-// Model routing P0+P1 (plan .jodex/runs/20261121-4a4019/plan-1.md with the MR amendments).
+// Model routing P0+P1 (plan .jevmind/runs/20261121-4a4019/plan-1.md with the MR amendments).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -19,8 +19,8 @@ import { tempRepo } from './helpers.ts';
 // jevMode enforce: D1 (stubbed below) recommends collaborative for every prompt.
 function repo(extra = '', jevMode = 'off') {
   const root = tempRepo({ 'src/a.js': 'export const a = 1;\n' });
-  fs.mkdirSync(path.join(root, '.jodex'));
-  fs.writeFileSync(path.join(root, '.jodex/config.toml'), `[risk]\ncritical = ["**/auth/**"]\n[checks]\ntest = "true"\n[review]\ncross_provider = false\n[jev]\nmode = "${jevMode}"\nconsent = true\n${extra}`);
+  fs.mkdirSync(path.join(root, '.jevmind'));
+  fs.writeFileSync(path.join(root, '.jevmind/config.toml'), `[risk]\ncritical = ["**/auth/**"]\n[checks]\ntest = "true"\n[review]\ncross_provider = false\n[jev]\nmode = "${jevMode}"\nconsent = true\n${extra}`);
   return root;
 }
 const ev = (root: string, name: string, extra: object = {}) => ({ hook_event_name: name, session_id: 'S', cwd: root, ...extra });
@@ -46,8 +46,8 @@ jev.askCommand = async () => {
 
 const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 // CODEX_SESSION_ID is blanked so a check run from inside Codex does not leak its session into the fixture.
-const jodexAs = (sid: string, root: string, ...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, JODEX_DISABLE: '', CODEX_SESSION_ID: sid } });
-const jodex = (root: string, ...args: string[]) => jodexAs('', root, ...args);
+const jevmindAs = (sid: string, root: string, ...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, JEVMIND_DISABLE: '', CODEX_SESSION_ID: sid } });
+const jevmind = (root: string, ...args: string[]) => jevmindAs('', root, ...args);
 
 test('P0-pre: an agent message is not a new task and asks Jev nothing', async () => {
   const root = repo('', 'enforce');
@@ -55,13 +55,13 @@ test('P0-pre: an agent message is not a new task and asks Jev nothing', async ()
   assert.equal(readDecisions(root).length, 0);
 });
 
-test('P0a: a Jev-recommended collaborative question opens no run; reads, tests and jodex stay free', async () => {
+test('P0a: a Jev-recommended collaborative question opens no run; reads, tests and jevmind stay free', async () => {
   const root = repo('', 'enforce');
   const out: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'how does a work?' }));
   assert.match(out.hookSpecificOutput.additionalContext, /Jev recommends collaborative/);
   assert.equal(listRuns(root).length, 0, 'no run at prompt time');
   // `true` is the fixture's configured [checks] test command (D1: only configured checks are free).
-  for (const c of ['ls', 'true', 'jodex status']) assert.deepEqual(await handleHook(bash(root, c)), {}, c);
+  for (const c of ['ls', 'true', 'jevmind status']) assert.deepEqual(await handleHook(bash(root, c)), {}, c);
   assert.equal(listRuns(root).length, 0);
   assert.deepEqual(await handleHook(ev(root, 'Stop', { last_assistant_message: 'a is a constant.' })), {});
 });
@@ -92,7 +92,7 @@ test('P0a: a command that may change files opens the collaborative run and is de
 test('R0 blocker: a configured check matches as written, not after masking its quotes', async () => {
   const configured = () => {
     const root = repo('', 'enforce');
-    const file = path.join(root, '.jodex/config.toml');
+    const file = path.join(root, '.jevmind/config.toml');
     fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('test = "true"', 'test = \'npm test -- "a|b"\''));
     return root;
   };
@@ -117,7 +117,7 @@ test('R0 blocker: a lone `&` does not smuggle a write past the free set or the l
   assert.equal(run0(root).mode, 'collaborative', 'the run opened');
   const root2 = repo();
   await pendingPlan(root2);
-  assert.ok(denied(await handleHook(bash(root2, 'jodex status & touch x'))));
+  assert.ok(denied(await handleHook(bash(root2, 'jevmind status & touch x'))));
 });
 
 test('R1 blocker: source-rewriting lint and build flags are not free before a plan', async () => {
@@ -140,7 +140,7 @@ test('R1: a planner restarted after cancel gets a new attempt key', async () => 
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'collab: x' }));
   const r = run0(root);
   assert.equal(startPlan(root, r, loadConfig(root)).ok, true);
-  expireAwaiting(r, 'cancelled by `jodex cancel`');
+  expireAwaiting(r, 'cancelled by `jevmind cancel`');
   assert.equal(startPlan(root, r, loadConfig(root)).ok, true);
   assert.deepEqual(r.attempts!.map((a) => a.key), ['planner-0', 'planner-1']);
 });
@@ -155,10 +155,10 @@ test('R3.1: a denied first Write saves the raised mode, so the next shell comman
 
 test('P0b: temp writes outside the repo open no run and are allowed while a role is awaited', async () => {
   const root = repo();
-  const tmp = path.join(os.tmpdir(), `jodex-scratch-${process.pid}.md`);
+  const tmp = path.join(os.tmpdir(), `jevmind-scratch-${process.pid}.md`);
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'review: x' }));
   assert.deepEqual(await handleHook(write(root, tmp)), {});
-  assert.deepEqual(await handleHook(write(root, '/tmp/jodex-scratch.md')), {}, '/tmp counts as temp (B)');
+  assert.deepEqual(await handleHook(write(root, '/tmp/jevmind-scratch.md')), {}, '/tmp counts as temp (B)');
   assert.equal(listRuns(root).length, 0);
   await handleHook(write(root, 'src/a.js'));
   const helper = { agent_id: 'H', agent_type: 'general-purpose' };
@@ -168,14 +168,14 @@ test('P0b: temp writes outside the repo open no run and are allowed while a role
   r.awaiting = { role: 'tester', since: new Date().toISOString() };
   saveRun(root, r);
   assert.deepEqual(await handleHook(write(root, tmp)), {}, 'the worker may use scratch space while waiting');
-  assert.ok(denied(await handleHook(write(root, tmp, { agent_id: 'T', agent_type: 'jodex:tester' }))), 'the tester writes test files only');
-  assert.ok(denied(await handleHook(write(root, tmp, { agent_id: 'R', agent_type: 'jodex:reviewer' }))), 'the reviewer is read-only');
+  assert.ok(denied(await handleHook(write(root, tmp, { agent_id: 'T', agent_type: 'jevmind:tester' }))), 'the tester writes test files only');
+  assert.ok(denied(await handleHook(write(root, tmp, { agent_id: 'R', agent_type: 'jevmind:reviewer' }))), 'the reviewer is read-only');
   assert.deepEqual(run0(root).touched, ['src/a.js']);
 });
 
 test('P0b: a non-temp path outside the repo is never touched, and is denied while waiting or before a plan', async () => {
-  // Not under any temp dir (JODEX_HOME from the helpers is): nothing is written there by the hook.
-  const outside = path.join(os.homedir(), `.jodex-nontemp-${process.pid}`, 'notes.md');
+  // Not under any temp dir (JEVMIND_HOME from the helpers is): nothing is written there by the hook.
+  const outside = path.join(os.homedir(), `.jevmind-nontemp-${process.pid}`, 'notes.md');
   const root = repo();
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'solo: x' }));
   assert.deepEqual(await handleHook(write(root, outside)), {});
@@ -196,7 +196,7 @@ test('P0b, R3.6: a symlinked alias of the repo and an in-repo link into /tmp are
   const root = repo();
   const alias = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'alias-')), 'repo');
   fs.symlinkSync(root, alias);
-  fs.symlinkSync('/tmp/jodex-link-target.md', path.join(root, 'link.md'));
+  fs.symlinkSync('/tmp/jevmind-link-target.md', path.join(root, 'link.md'));
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'solo: x' }));
   assert.deepEqual(await handleHook(write(root, path.join(alias, 'src/a.js'))), {});
   assert.deepEqual(await handleHook(write(root, 'link.md')), {});
@@ -208,17 +208,17 @@ async function pendingPlan(root: string) {
   const r = run0(root);
   startPlan(root, r, loadConfig(root));
   saveRun(root, r);
-  await handleHook(ev(root, 'SubagentStop', { agent_id: 'P', agent_type: 'jodex:planner', last_assistant_message: '# Plan v1\n- change a' }));
+  await handleHook(ev(root, 'SubagentStop', { agent_id: 'P', agent_type: 'jevmind:planner', last_assistant_message: '# Plan v1\n- change a' }));
   assert.equal(run0(root).plans![0].decision, null);
 }
 
-test('P0c: `jodex review plan` is allowed for the worker while a plan is pending, not for a helper', async () => {
+test('P0c: `jevmind review plan` is allowed for the worker while a plan is pending, not for a helper', async () => {
   const root = repo();
   await pendingPlan(root);
-  assert.deepEqual(await handleHook(bash(root, 'jodex review plan')), {});
-  assert.deepEqual(await handleHook(bash(root, 'jodex review plan 2>&1')), {});
-  assert.ok(denied(await handleHook(bash(root, 'jodex review plan > out.txt'))), 'not a file write');
-  assert.ok(denied(await handleHook(bash(root, 'jodex review plan', { agent_id: 'H', agent_type: 'general-purpose' }))));
+  assert.deepEqual(await handleHook(bash(root, 'jevmind review plan')), {});
+  assert.deepEqual(await handleHook(bash(root, 'jevmind review plan 2>&1')), {});
+  assert.ok(denied(await handleHook(bash(root, 'jevmind review plan > out.txt'))), 'not a file write');
+  assert.ok(denied(await handleHook(bash(root, 'jevmind review plan', { agent_id: 'H', agent_type: 'general-purpose' }))));
 });
 
 const transcript = (...entries: object[]) => {
@@ -241,7 +241,7 @@ async function planning(root: string) {
   startPlan(root, r, loadConfig(root));
   saveRun(root, r);
 }
-const plannerStop = (root: string, extra: object) => ev(root, 'SubagentStop', { agent_id: 'P', agent_type: 'jodex:planner', last_assistant_message: '', ...extra });
+const plannerStop = (root: string, extra: object) => ev(root, 'SubagentStop', { agent_id: 'P', agent_type: 'jevmind:planner', last_assistant_message: '', ...extra });
 
 test('E: a plan delivered through SubagentHandback is recorded on the first stop', async () => {
   const root = repo();
@@ -327,8 +327,8 @@ test('P1: [models.<host>] <role> and <role>_critical override the tiers; old key
 
 test('apply status states the planner, tester and reviewer scope', () => {
   const root = repo('[models]\nmode = "apply"\n');
-  for (const cmd of ['status', 'check']) assert.match(jodex(root, cmd).stdout, /apply requests planner, tester and reviewer models by role and risk/, cmd);
-  assert.equal(/apply is not supported/.test(jodex(repo('[models]\nmode = "shadow"\n'), 'check').stdout), false);
+  for (const cmd of ['status', 'check']) assert.match(jevmind(root, cmd).stdout, /apply requests planner, tester and reviewer models by role and risk/, cmd);
+  assert.equal(/apply is not supported/.test(jevmind(repo('[models]\nmode = "shadow"\n'), 'check').stdout), false);
 });
 
 test('apply launches planner/tester with approved native arguments and leaves observation unknown', () => {
@@ -350,7 +350,7 @@ test('apply launches planner/tester with approved native arguments and leaves ob
       assert.match(out.text, new RegExp(`"reasoning_effort":"${effort}"`));
       assert.match(out.text, /"fork_turns":"none"/);
     } else {
-      assert.match(out.text, new RegExp(`"subagent_type":"jodex:${role}"`));
+      assert.match(out.text, new RegExp(`"subagent_type":"jevmind:${role}"`));
       assert.match(out.text, new RegExp(`"effort":"${effort}"`));
     }
     assert.match(out.text, /do not launch|Do not launch/);
@@ -378,7 +378,7 @@ test('apply tester reconciles shell-only critical edits before choosing the Clau
   assert.notEqual(run0(root).riskFloor, 'critical');
   fs.mkdirSync(path.join(root, 'auth'));
   fs.writeFileSync(path.join(root, 'auth/login.js'), 'export const login = true;\n');
-  const out = jodex(root, 'test', 'start');
+  const out = jevmind(root, 'test', 'start');
   assert.equal(out.status, 0, out.stderr);
   const r = run0(root);
   assert.equal(r.riskFloor, 'critical');
@@ -439,9 +439,9 @@ test('P1: a typed child other than the bound one leaves the observation unknown;
   let r = run0(root);
   startTests(root, r, loadConfig(root));
   saveRun(root, r);
-  await handleHook(write(root, 'test/a.test.js', { agent_id: 'T1', agent_type: 'jodex:tester' })); // binds T1
+  await handleHook(write(root, 'test/a.test.js', { agent_id: 'T1', agent_type: 'jevmind:tester' })); // binds T1
   const tr = transcript(usageEntry('m1', 10, 5));
-  await handleHook(ev(root, 'SubagentStop', { agent_id: 'T2', agent_type: 'jodex:tester', agent_transcript_path: tr, last_assistant_message: 'tests added' }));
+  await handleHook(ev(root, 'SubagentStop', { agent_id: 'T2', agent_type: 'jevmind:tester', agent_transcript_path: tr, last_assistant_message: 'tests added' }));
   r = run0(root);
   assert.ok(r.testerDoneAt, 'the role result is still recorded');
   const a = r.attempts![0];
@@ -486,7 +486,7 @@ test('usage: a bound typed child records attempt usage', async () => {
   const r = run0(root);
   startTests(root, r, loadConfig(root));
   saveRun(root, r);
-  await handleHook(ev(root, 'SubagentStop', { agent_id: 'T', agent_type: 'jodex:tester', agent_transcript_path: transcript(usageEntry('m1', 10, 5), usageEntry('m1', 10, 5)), last_assistant_message: 'tests added' }));
+  await handleHook(ev(root, 'SubagentStop', { agent_id: 'T', agent_type: 'jevmind:tester', agent_transcript_path: transcript(usageEntry('m1', 10, 5), usageEntry('m1', 10, 5)), last_assistant_message: 'tests added' }));
   assert.deepEqual(run0(root).attempts![0].usage, { input: 10, output: 5, cacheRead: 3, cacheWrite: 2, source: 'claude-transcript' });
 });
 
@@ -516,7 +516,7 @@ test('R3.4: `plan start` with no open run claims the invoking session', async ()
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'add the live map', turn_id: 't' }));
   jev.askIntake = async () => collaborative();
   assert.equal(listRuns(root).length, 0);
-  const out = jodex(root, 'plan', 'start');
+  const out = jevmind(root, 'plan', 'start');
   assert.equal(out.status, 0, out.stderr);
   const r = run0(root);
   assert.deepEqual([r.request, r.host, r.sessionId, r.awaiting?.role, r.attempts![0].host], ['add the live map', 'codex', 'S', 'planner', 'codex']);
@@ -525,9 +525,9 @@ test('R3.4: `plan start` with no open run claims the invoking session', async ()
 test('R4: a run created by `plan start` keeps the first prompt time through Stops and later prompts', async () => {
   const root = repo();
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'redesign a' }));
-  const first = JSON.parse(fs.readFileSync(path.join(root, '.jodex/sessions/S.json'), 'utf8')).promptAt;
+  const first = JSON.parse(fs.readFileSync(path.join(root, '.jevmind/sessions/S.json'), 'utf8')).promptAt;
   assert.ok(first);
-  assert.equal(jodex(root, 'plan', 'start').status, 0);
+  assert.equal(jevmind(root, 'plan', 'start').status, 0);
   assert.equal(run0(root).promptAt, first, 'copied from the session');
   await new Promise((r) => setTimeout(r, 20));
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'any news?' }));
@@ -546,7 +546,7 @@ test('CLI run choice: the active session never takes another session\'s open run
   const a = run0(root);
   await new Promise((r) => setTimeout(r, 20)); // B's session file is the newest
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task B', session_id: 'B', turn_id: 't' }));
-  const out = jodex(root, 'check');
+  const out = jevmind(root, 'check');
   assert.equal(out.status, 0, out.stderr);
   const runs = listRuns(root);
   assert.equal(runs.length, 2, 'a new run for B');
@@ -565,7 +565,7 @@ test('CLI run choice: CODEX_SESSION_ID outranks a newer session file', async () 
   await handleHook(write(root, 'src/a.js', { session_id: 'Y', turn_id: 't' }));
   const y = listRuns(root).find((r) => r.runId !== x.runId)!;
   assert.equal(y.sessionId, 'Y');
-  const out = jodexAs('X', root, 'check');
+  const out = jevmindAs('X', root, 'check');
   assert.equal(out.status, 0, out.stderr);
   const runs = listRuns(root);
   assert.equal(runs.length, 2, 'no new run');
@@ -578,7 +578,7 @@ test('CLI run choice: CODEX_SESSION_ID without a run creates a run that is not t
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task Y', session_id: 'Y', turn_id: 't' }));
   await handleHook(write(root, 'src/a.js', { session_id: 'Y', turn_id: 't' }));
   const y = run0(root);
-  const out = jodexAs('X', root, 'check');
+  const out = jevmindAs('X', root, 'check');
   assert.equal(out.status, 0, out.stderr);
   const runs = listRuns(root);
   assert.deepEqual(runs.find((r) => r.runId === y.runId)!.checks, {}, "Y's run is untouched");
@@ -590,7 +590,7 @@ test('CLI run choice: CODEX_SESSION_ID without a run creates a run that is not t
 test('CLI run choice: a run created for CODEX_SESSION_ID takes host and model from that session', async () => {
   const root = repo();
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task X', session_id: 'X', turn_id: 't', model: 'gpt-m' }));
-  const out = jodexAs('X', root, 'check');
+  const out = jevmindAs('X', root, 'check');
   assert.equal(out.status, 0, out.stderr);
   const runs = listRuns(root);
   assert.equal(runs.length, 1);
@@ -599,23 +599,23 @@ test('CLI run choice: a run created for CODEX_SESSION_ID takes host and model fr
 
 test('CLI run choice: CODEX_SESSION_ID claims an unclaimed run for its own session, not the newest one', async () => {
   const root = repo();
-  const r = createRun(root, null, ''); // opened by an earlier `jodex check`
+  const r = createRun(root, null, ''); // opened by an earlier `jevmind check`
   saveRun(root, r);
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task X', session_id: 'X', turn_id: 't', model: 'gpt-x' }));
   await new Promise((res) => setTimeout(res, 20)); // Y's session file is the newest
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task Y', session_id: 'Y', model: 'claude-y' }));
-  const out = jodexAs('X', root, 'check');
+  const out = jevmindAs('X', root, 'check');
   assert.equal(out.status, 0, out.stderr);
   const runs = listRuns(root);
   assert.equal(runs.length, 1);
   assert.deepEqual([runs[0].runId, runs[0].sessionId, runs[0].request, runs[0].host, runs[0].model], [r.runId, 'X', 'task X', 'codex', 'gpt-x']);
 });
 
-test('a run first opened by `jodex check` after shell edits still takes the prompt\'s Jev mode', async () => {
+test('a run first opened by `jevmind check` after shell edits still takes the prompt\'s Jev mode', async () => {
   const root = repo('', 'enforce');
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'change a', session_id: 'X', turn_id: 't' })); // D1 stub: collaborative
   fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 2;\n'); // a shell edit: no PreToolUse
-  const out = jodexAs('X', root, 'check');
+  const out = jevmindAs('X', root, 'check');
   assert.equal(out.status, 0, out.stderr);
   const r = run0(root);
   assert.deepEqual([r.sessionId, r.mode, r.touched], ['X', 'collaborative', ['src/a.js']]);
@@ -644,16 +644,16 @@ test('`collab:` still raises an open run that already has changes', async () => 
   assert.equal(listRuns(root).find((x) => x.runId === r.runId)!.mode, 'collaborative');
 });
 
-test('CLI run choice: with no session file, `jodex status` shows the latest open run', () => {
+test('CLI run choice: with no session file, `jevmind status` shows the latest open run', () => {
   const root = repo();
   const r = createRun(root, 'A', 'from a terminal');
   saveRun(root, r);
-  assert.match(jodex(root, 'status').stdout, new RegExp(`Jodex run ${r.runId}`));
+  assert.match(jevmind(root, 'status').stdout, new RegExp(`Jevmind run ${r.runId}`));
 });
 
 test('CLI run choice: a session file older than 30 minutes is not the active session', () => {
   const root = repo();
-  const dir = path.join(root, '.jodex/sessions');
+  const dir = path.join(root, '.jevmind/sessions');
   fs.mkdirSync(dir, { recursive: true });
   const old = path.join(dir, 'OLD.json');
   fs.writeFileSync(old, JSON.stringify({ lastPrompt: 'probe', baseline: null }));
@@ -662,17 +662,17 @@ test('CLI run choice: a session file older than 30 minutes is not the active ses
   assert.equal(activeSessionId(root), null);
   const r = createRun(root, 'A', 'from a terminal');
   saveRun(root, r);
-  assert.match(jodex(root, 'status').stdout, new RegExp(`Jodex run ${r.runId}`), 'falls back to the latest open run');
+  assert.match(jevmind(root, 'status').stdout, new RegExp(`Jevmind run ${r.runId}`), 'falls back to the latest open run');
   fs.writeFileSync(path.join(dir, 'NEW.json'), JSON.stringify({ lastPrompt: 'x', baseline: null }));
   assert.equal(activeSessionId(root), 'NEW');
 });
 
 test('CLI run choice: an unclaimed run is picked up by the active session', async () => {
   const root = repo();
-  const r = createRun(root, null, ''); // opened by an earlier `jodex check`
+  const r = createRun(root, null, ''); // opened by an earlier `jevmind check`
   saveRun(root, r);
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'task B', session_id: 'B' }));
-  assert.equal(jodex(root, 'check').status, 0);
+  assert.equal(jevmind(root, 'check').status, 0);
   const runs = listRuns(root);
   assert.deepEqual([runs.length, runs[0].runId, runs[0].sessionId, runs[0].request], [1, r.runId, 'B', 'task B']);
 });
@@ -693,8 +693,8 @@ test('board: stage models from attempts, legacy roleModels fallback', () => {
 
 test('a new project config routes planner and tester models', () => {
   const root = tempRepo({});
-  fs.mkdirSync(path.join(root, '.jodex'));
-  fs.writeFileSync(path.join(root, '.jodex/config.toml'), renderConfig({ test: 'true' }));
+  fs.mkdirSync(path.join(root, '.jevmind'));
+  fs.writeFileSync(path.join(root, '.jevmind/config.toml'), renderConfig({ test: 'true' }));
   assert.equal(loadConfig(root).models.mode, 'apply');
 });
 

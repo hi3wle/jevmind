@@ -41,7 +41,7 @@ function command(host: Host, brief: string, root: string, outFile: string, pair:
   };
 }
 
-// One launch per key, across hook and `jodex review wait` processes: the marker file is created exclusively.
+// One launch per key, across hook and `jevmind review wait` processes: the marker file is created exclusively.
 function claimLaunch(file: string): boolean {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   try {
@@ -53,14 +53,14 @@ function claimLaunch(file: string): boolean {
 }
 
 const spawnDetached = (root: string, script: string, args: string[]) =>
-  spawn(process.execPath, [script, ...args], { cwd: root, detached: true, stdio: 'ignore', env: { ...process.env, JODEX_DISABLE: '1' } }).unref();
+  spawn(process.execPath, [script, ...args], { cwd: root, detached: true, stdio: 'ignore', env: { ...process.env, JEVMIND_DISABLE: '1' } }).unref();
 
 // Inside the Codex sandbox (seen live in 0.171.0: CODEX_SANDBOX=seatbelt, no network) the other CLI
 // cannot start; only the hook, which runs outside it, can launch a reviewer.
 export const inCodexSandbox = () => !!(process.env.CODEX_SANDBOX || process.env.CODEX_SANDBOX_NETWORK_DISABLED);
 
 // Starts the reviewer as a detached process. Called from a hook (outside any sandbox: Codex's
-// workspace-write sandbox has no network) or from `jodex review wait` as a fallback.
+// workspace-write sandbox has no network) or from `jevmind review wait` as a fallback.
 export function launchReviewer(root: string, run: Run, script: string): boolean {
   const review = latestReview(run);
   if (!review?.reviewer || review.reviewer.mode !== 'cross' || review.reviewer.launchedAt || review.at) return false;
@@ -77,10 +77,10 @@ type CliResult = { cmd: string; message: string; observed: Observation; cost: nu
 
 // Runs the other provider's CLI on a brief, read-only, and reports what it said and which model ran.
 function runCli(host: Host, brief: string, root: string, pair: ModelPair, name: string): CliResult {
-  const outFile = path.join(os.tmpdir(), `jodex-${name}.txt`);
+  const outFile = path.join(os.tmpdir(), `jevmind-${name}.txt`);
   const { cmd, args } = command(host, brief, root, outFile, pair);
   const t0 = Date.now();
-  const r = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: REVIEW_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, JODEX_DISABLE: '1' } });
+  const r = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: REVIEW_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, JEVMIND_DISABLE: '1' } });
   let message = '';
   let cost: number | null = null;
   let observed: Observation = { model: null, effort: null, source: null };
@@ -139,7 +139,7 @@ export async function runReviewer(root: string, runId: string, round: string | u
   refreshBoard();
 }
 
-// Cross review of a plan awaiting the worker's challenge (`jodex review plan`). The result is
+// Cross review of a plan awaiting the worker's challenge (`jevmind review plan`). The result is
 // advice for the worker: it is saved next to the plan and changes no plan decision or review round.
 export const planReviewFile = (root: string, run: Run, n: number) => path.join(runDir(root, run), `plan-${n}-review.md`);
 

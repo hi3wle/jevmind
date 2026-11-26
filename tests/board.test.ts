@@ -115,12 +115,12 @@ test('live server: page, data, change events, and Host check', async () => {
         let buf = '';
         res.on('data', (c) => {
           buf += c;
-          if (buf.includes(': connected')) fs.writeFileSync(path.join(root, '.jodex', 'touch.json'), '{}');
+          if (buf.includes(': connected')) fs.writeFileSync(path.join(root, '.jevmind', 'touch.json'), '{}');
           if (buf.includes('data: changed')) { res.destroy(); ok(buf); }
         });
       });
     });
-    assert.match(event, /data: changed/, 'a write under .jodex/ is pushed to the page');
+    assert.match(event, /data: changed/, 'a write under .jevmind/ is pushed to the page');
   } finally {
     server.closeAllConnections();
     server.close();

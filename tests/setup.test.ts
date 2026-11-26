@@ -9,79 +9,79 @@ import { buildSync } from 'esbuild';
 import { parse } from 'smol-toml';
 
 test('failed PATH link stops setup before host registration', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-setup-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-setup-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const cli = path.join(root, 'plugin/dist/jodex.mjs');
+  const cli = path.join(root, 'plugin/dist/jevmind.mjs');
   buildSync({ entryPoints: [fileURLToPath(new URL('../src/cli.ts', import.meta.url))], outfile: cli, bundle: true, platform: 'node', format: 'esm' });
   fs.mkdirSync(path.join(root, '.git'));
   fs.writeFileSync(path.join(root, 'npm'), '#!/bin/sh\necho "no links added" >&2\nexit 1\n', { mode: 0o755 });
   const result = spawnSync(process.execPath, [cli, 'setup'], { env: { PATH: root, HOME: root }, encoding: 'utf8' });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /FAIL.*npm link/);
-  assert.doesNotMatch(result.stdout, /Next:|trust the Jodex hooks/);
+  assert.doesNotMatch(result.stdout, /Next:|trust the Jevmind hooks/);
 });
 
 // Non-interactive `setup --agent`: a git checkout links with npm, registers only the chosen host, and stores the choice.
 function agentSetup(t: import('node:test').TestContext, args: string[], storedGlobal?: string) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-agent-setup-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-agent-setup-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const cli = path.join(root, 'plugin/dist/jodex.mjs');
+  const cli = path.join(root, 'plugin/dist/jevmind.mjs');
   buildSync({ entryPoints: [fileURLToPath(new URL('../src/cli.ts', import.meta.url))], outfile: cli, bundle: true, platform: 'node', format: 'esm' });
   fs.mkdirSync(path.join(root, '.git'));
   const bin = path.join(root, 'bin');
-  const jodexHome = path.join(root, 'jodex-home');
+  const jevmindHome = path.join(root, 'jevmind-home');
   fs.mkdirSync(bin);
   if (storedGlobal !== undefined) {
-    fs.mkdirSync(jodexHome);
-    fs.writeFileSync(path.join(jodexHome, 'config.toml'), storedGlobal);
+    fs.mkdirSync(jevmindHome);
+    fs.writeFileSync(path.join(jevmindHome, 'config.toml'), storedGlobal);
   }
   const log = path.join(root, 'calls.log');
   for (const name of ['npm', 'claude', 'codex']) fs.writeFileSync(path.join(bin, name), `#!/bin/sh\necho "${name} $*" >> '${log}'\nexit 0\n`, { mode: 0o755 });
-  // HOME and JODEX_HOME are temp dirs, so the real ~/.jodex and host settings are never touched.
-  const result = spawnSync(process.execPath, [cli, 'setup', ...args], { env: { PATH: bin, HOME: root, JODEX_HOME: jodexHome }, encoding: 'utf8' });
+  // HOME and JEVMIND_HOME are temp dirs, so the real ~/.jevmind and host settings are never touched.
+  const result = spawnSync(process.execPath, [cli, 'setup', ...args], { env: { PATH: bin, HOME: root, JEVMIND_HOME: jevmindHome }, encoding: 'utf8' });
   const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : [];
-  return { result, calls, jodexHome };
+  return { result, calls, jevmindHome };
 }
 
 test('setup --agent codex registers only Codex and stores the choice', (t) => {
-  const { result, calls, jodexHome } = agentSetup(t, ['--agent', 'codex']);
+  const { result, calls, jevmindHome } = agentSetup(t, ['--agent', 'codex']);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.ok(calls.includes('npm link --no-audit --no-fund'), calls.join('\n'));
-  assert.ok(calls.includes('codex plugin add jodex@jodex'), calls.join('\n'));
+  assert.ok(calls.includes('codex plugin add jevmind@jevmind'), calls.join('\n'));
   assert.ok(!calls.some((c) => c.startsWith('claude plugin')), calls.join('\n'));
-  assert.deepEqual((parse(fs.readFileSync(path.join(jodexHome, 'config.toml'), 'utf8')) as { agents: unknown }).agents, ['codex']);
+  assert.deepEqual((parse(fs.readFileSync(path.join(jevmindHome, 'config.toml'), 'utf8')) as { agents: unknown }).agents, ['codex']);
 });
 
 test('non-interactive setup without --agent keeps the stored global choice', (t) => {
-  const { result, calls, jodexHome } = agentSetup(t, [], 'agents = ["codex"]\n');
+  const { result, calls, jevmindHome } = agentSetup(t, [], 'agents = ["codex"]\n');
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.ok(calls.includes('codex plugin add jodex@jodex'), calls.join('\n'));
+  assert.ok(calls.includes('codex plugin add jevmind@jevmind'), calls.join('\n'));
   assert.ok(!calls.some((c) => c.startsWith('claude plugin')), calls.join('\n'));
-  assert.deepEqual((parse(fs.readFileSync(path.join(jodexHome, 'config.toml'), 'utf8')) as { agents: unknown }).agents, ['codex']);
+  assert.deepEqual((parse(fs.readFileSync(path.join(jevmindHome, 'config.toml'), 'utf8')) as { agents: unknown }).agents, ['codex']);
 });
 
 test('setup --agent with an unknown name fails before anything is installed or stored', (t) => {
-  const { result, calls, jodexHome } = agentSetup(t, ['--agent', 'foo']);
+  const { result, calls, jevmindHome } = agentSetup(t, ['--agent', 'foo']);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /--agent takes claude, codex or claude,codex/);
   // Host CLI probes (--version) may run for detection; no npm link or plugin command may.
   assert.ok(!calls.some((c) => /^(npm|claude plugin|codex plugin)/.test(c)), calls.join('\n'));
-  assert.equal(fs.existsSync(path.join(jodexHome, 'config.toml')), false);
+  assert.equal(fs.existsSync(path.join(jevmindHome, 'config.toml')), false);
 });
 
 // A packaged copy (no .git): setup installs the exact version globally and registers that copy.
 function packaged(t: import('node:test').TestContext, failInstall: boolean) {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-pkg-'));
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-pkg-'));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   const root = path.join(base, 'cache');
   const bin = path.join(base, 'bin');
   const global = path.join(base, 'global');
-  const name = '@hi3wle/jodex';
-  const cli = path.join(root, 'plugin/dist/jodex.mjs');
+  const name = '@hi3wle/jevmind';
+  const cli = path.join(root, 'plugin/dist/jevmind.mjs');
   buildSync({ entryPoints: [fileURLToPath(new URL('../src/cli.ts', import.meta.url))], outfile: cli, bundle: true, platform: 'node', format: 'esm' });
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name, version: '1.2.3' }));
   fs.mkdirSync(path.join(global, name, 'plugin/dist'), { recursive: true });
-  fs.writeFileSync(path.join(global, name, 'plugin/dist/jodex.mjs'), '');
+  fs.writeFileSync(path.join(global, name, 'plugin/dist/jevmind.mjs'), '');
   fs.mkdirSync(bin);
   const log = path.join(base, 'calls.log');
   const npm = `#!/bin/sh\necho "npm $*" >> '${log}'\n[ "$1" = root ] && echo '${global}'\n${failInstall ? '[ "$1" = install ] && { echo boom >&2; exit 1; }\n' : ''}exit 0\n`;

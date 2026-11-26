@@ -1,8 +1,9 @@
 {
-  "name": "jodex",
+  "name": "jevmind",
   "version": "0.1.0",
   "description": "Adaptive coding harness for Claude Code and Codex",
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": "github:hi3wle/jevmind",
   "type": "module",
   "files": [
     "plugin",
@@ -10,13 +11,13 @@
     ".agents/plugins"
   ],
   "bin": {
-    "jodex": "plugin/dist/jodex.mjs"
+    "jevmind": "plugin/dist/jevmind.mjs"
   },
   "engines": {
     "node": ">=22.18"
   },
   "scripts": {
-    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node22 --outfile=plugin/dist/jodex.mjs --banner:js=\"#!/usr/bin/env node\" && chmod +x plugin/dist/jodex.mjs",
+    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node22 --outfile=plugin/dist/jevmind.mjs --banner:js=\"#!/usr/bin/env node\" && chmod +x plugin/dist/jevmind.mjs",
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.ts"

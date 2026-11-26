@@ -7,15 +7,15 @@ title: Nghiệm thu theo milestone
 
 ## BW · Actual board workflow (21/11/2026)
 
-Plan accepted in run20261121-37731a. Parent TDD: workflow activity regression RED missing behavior→GREEN; closed stale-await and completed-review summary regressions RED2→GREEN2. Earlier affected suite49/49 passed before final closed-stage delta; final current checks belong in Jodex checks/review packet. Existing SSE/Host protection/escaping tests retained. Parent opened actual source board4318 via native Chrome and observed actual planner→implementation transition; no seeded successful run. Planned remaining evidence: tester/reviewer live handoffs without reload, narrow rendering, keyboard focus across refresh, full checks and final review. Model requested through native tool is not automatically observed by untyped Codex hooks; no fabricated model attribution. `[models] apply` activation remains blocked by managed-file instruction.
+Plan accepted in run20261121-37731a. Parent TDD: workflow activity regression RED missing behavior→GREEN; closed stale-await and completed-review summary regressions RED2→GREEN2. Earlier affected suite49/49 passed before final closed-stage delta; final current checks belong in Jevmind checks/review packet. Existing SSE/Host protection/escaping tests retained. Parent opened actual source board4318 via native Chrome and observed actual planner→implementation transition; no seeded successful run. Planned remaining evidence: tester/reviewer live handoffs without reload, narrow rendering, keyboard focus across refresh, full checks and final review. Model requested through native tool is not automatically observed by untyped Codex hooks; no fabricated model attribution. `[models] apply` activation remains blocked by managed-file instruction.
 
-Independent tester Luna high: affected49/49, full148/148 JS, Python7/7, typecheck/build exit0; no new test gap/production defect found. Parent native Chrome smoke actual run37731a: UI changed without reload from implementation to `Waiting for tester result`, tester highlighted, implementor waiting; after result tester became done. Run click selected session and Space toggled it after timed refresh (focus preserved). iPhone16 emulation393×852 revealed min-content overflow; final CSS main min-width0 + minmax grid corrected width, then screenshot at100% and PageDown showed vertical Tester→Reviewer cards/connector and recorded gates within viewport. Desktop preview also observed four horizontal cards. No simulated successful run or invented observed model; prior checks are superseded after final CSS/docs by the final source-bound Jodex check in review packet. Reviewer live transition and final result remain recorded in native tool transcript/Jodex run rather than editing docs after review. No commit/push or managed config write.
+Independent tester Luna high: affected49/49, full148/148 JS, Python7/7, typecheck/build exit0; no new test gap/production defect found. Parent native Chrome smoke actual run37731a: UI changed without reload from implementation to `Waiting for tester result`, tester highlighted, implementor waiting; after result tester became done. Run click selected session and Space toggled it after timed refresh (focus preserved). iPhone16 emulation393×852 revealed min-content overflow; final CSS main min-width0 + minmax grid corrected width, then screenshot at100% and PageDown showed vertical Tester→Reviewer cards/connector and recorded gates within viewport. Desktop preview also observed four horizontal cards. No simulated successful run or invented observed model; prior checks are superseded after final CSS/docs by the final source-bound Jevmind check in review packet. Reviewer live transition and final result remain recorded in native tool transcript/Jevmind run rather than editing docs after review. No commit/push or managed config write.
 
 ## MR launch routing · 21/11/2026
 
 Run 20261121-aed583. Independent unit_tester bổ sung off/shadow giữ launch mặc định, unknown host bị từ chối trước await, reviewer same-host giữ mặc định và cross-Claude giữ configured review model khi apply. Bảng test có cả hai host × ba risk × hai role, requested/observed tách biệt, blank model bị từ chối và Codex effort null được bỏ khỏi native arguments. Parent RED2→GREEN2 chứng minh hai regression cuối.
 
-`jodex check` của tester: JS146/146, `npx tsc --noEmit -p .` exit0, Python7/7, build exit0. Parent built-CLI smoke: 36/36 (off/shadow/apply × Claude/Codex × low/elevated/critical × planner/tester), dùng hook và CLI thật trong git repo/home/JODEX_HOME tạm; assert host/risk, requested model/effort, observed unknown và native arguments. Exit0; temp sandbox được xoá; không provider/Jev call. AI DevKit cached CLI lint feature:12/12 exit0. `git diff --check` phát hiện whitespace đã có trong .jodex/config.toml; giữ nguyên file managed. Chưa kiểm model launch thật hoặc bật apply trong cấu hình project; independent review và human acceptance còn mở.
+`jevmind check` của tester: JS146/146, `npx tsc --noEmit -p .` exit0, Python7/7, build exit0. Parent built-CLI smoke: 36/36 (off/shadow/apply × Claude/Codex × low/elevated/critical × planner/tester), dùng hook và CLI thật trong git repo/home/JEVMIND_HOME tạm; assert host/risk, requested model/effort, observed unknown và native arguments. Exit0; temp sandbox được xoá; không provider/Jev call. AI DevKit cached CLI lint feature:12/12 exit0. `git diff --check` phát hiện whitespace đã có trong .jevmind/config.toml; giữ nguyên file managed. Chưa kiểm model launch thật hoặc bật apply trong cấu hình project; independent review và human acceptance còn mở.
 
 R0 reviewer đã tìm risk stale sau shell-only critical edit. Parent tái hiện bằng test CLI `apply tester reconciles shell-only critical edits before choosing the Claude model`: RED1 (low thay critical) → thêm reconcileSession → GREEN1 exit0. Suite146 và smoke36 ở trên là evidence trước correction; tester kiểm lại suite/build/affected CLI smoke, kết quả source-bound cuối được lưu trong checks của run 20261121-aed583 và packet review R1. Không coi evidence trước correction là kiểm chứng source mới. Human acceptance và model execution live vẫn là gate riêng.
 
@@ -97,13 +97,13 @@ Candidate là working tree chưa commit. Môi trường: Node v26.7.0, Claude Co
 | Kiểm tra | Lệnh | Kết quả |
 |---|---|---|
 | Typecheck | `npx tsc --noEmit` | exit 0 |
-| Unit/integration | `npm test` | 17/17 đạt, gồm: thứ tự completion, risk glob, path từ `apply_patch`, identity (file untracked, quyền thực thi, xoá file, `.git` chỉ đọc), check bị stale, hook no-op khi chưa init, prompt chỉ hỏi, task-notification, chặn ghi `.jodex/`, Stop chặn một lần rồi cho qua, sửa qua shell bị bắt nhờ baseline, risk critical, init/uninstall khôi phục đúng nguyên văn file |
-| Build | `npm run build` | `plugin/dist/jodex.mjs` khoảng 52 KB |
+| Unit/integration | `npm test` | 17/17 đạt, gồm: thứ tự completion, risk glob, path từ `apply_patch`, identity (file untracked, quyền thực thi, xoá file, `.git` chỉ đọc), check bị stale, hook no-op khi chưa init, prompt chỉ hỏi, task-notification, chặn ghi `.jevmind/`, Stop chặn một lần rồi cho qua, sửa qua shell bị bắt nhờ baseline, risk critical, init/uninstall khôi phục đúng nguyên văn file |
+| Build | `npm run build` | `plugin/dist/jevmind.mjs` khoảng 52 KB |
 | Setup cô lập | `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `npm_config_prefix` trỏ vào thư mục tạm; chạy `setup` hai lần, `doctor`, `uninstall` | 6/6 bước ok cả hai lần; doctor thấy plugin ở cả hai host; uninstall gỡ sạch |
-| Live Claude Code (haiku, `--plugin-dir`) | project mẫu có bug clamp | Lần 1: script test của fixture lỗi trên Node 26, agent báo `failed_verification` đúng và không sửa `package.json`. Lần 2 (đã sửa fixture): `jodex check` đạt, `Jodex status: verified`, run đóng. Chi phí 0,0044 + 0,0032 USD |
-| Live Codex (`-c hooks`, bỏ trust chỉ cho invocation) | cùng project | Lần 1 tìm ra **bug thật**: `jodex check` crash vì sandbox không cho `git add` ghi vào `.git`; agent báo `blocked`, rồi `review_required`, không nhận bừa là xong. Đã sửa identity thành chỉ đọc và thêm test. Lần 2: `jodex check` exit 0, `Jodex status: verified`, run đóng |
+| Live Claude Code (haiku, `--plugin-dir`) | project mẫu có bug clamp | Lần 1: script test của fixture lỗi trên Node 26, agent báo `failed_verification` đúng và không sửa `package.json`. Lần 2 (đã sửa fixture): `jevmind check` đạt, `Jevmind status: verified`, run đóng. Chi phí 0,0044 + 0,0032 USD |
+| Live Codex (`-c hooks`, bỏ trust chỉ cho invocation) | cùng project | Lần 1 tìm ra **bug thật**: `jevmind check` crash vì sandbox không cho `git add` ghi vào `.git`; agent báo `blocked`, rồi `review_required`, không nhận bừa là xong. Đã sửa identity thành chỉ đọc và thêm test. Lần 2: `jevmind check` exit 0, `Jevmind status: verified`, run đóng |
 
-Acceptance rows có bằng chứng: 1–4 (row 4 ở mức unit test và live fixture), 6 (unit), 19–21 (unit). Row 5 (thiếu business rule) cần Jev hoặc agent tự hỏi; M1 chỉ dựa vào chỉ dẫn, chưa có bằng chứng riêng. Row 17 (`jodex resume`) mới chạy ở mức CLI. Row 2 (gỡ cài) đã kiểm trong home cô lập, chưa kiểm trên máy thật.
+Acceptance rows có bằng chứng: 1–4 (row 4 ở mức unit test và live fixture), 6 (unit), 19–21 (unit). Row 5 (thiếu business rule) cần Jev hoặc agent tự hỏi; M1 chỉ dựa vào chỉ dẫn, chưa có bằng chứng riêng. Row 17 (`jevmind resume`) mới chạy ở mức CLI. Row 2 (gỡ cài) đã kiểm trong home cô lập, chưa kiểm trên máy thật.
 
 Chưa review độc lập. Status: `review_required`.
 
@@ -119,24 +119,24 @@ Plugin chạy từ bản cài thật, không dùng `--plugin-dir`. Claude Code d
 | T4 câu hỏi về `computeFee` | Claude Code | không có run | không có run |
 | T5 loyalty discount | Claude Code | hỏi lại, không đoán | không sửa gì, hỏi 4 câu về business rule |
 | T6 phí 3% | Codex | review_required (critical) | review_required, risk critical |
-| T7 rename, "đừng chạy lệnh nào" | Claude Code | Stop gate chặn | chặn 1 lần → agent chạy `jodex check` → verified; `stopBlocks` = 1 |
+| T7 rename, "đừng chạy lệnh nào" | Claude Code | Stop gate chặn | chặn 1 lần → agent chạy `jevmind check` → verified; `stopBlocks` = 1 |
 
-Kiểm tra trên source hiện tại: typecheck sạch, `npm test` 18/18 đạt (thêm test board: escape `</script>`, host/model của Codex, đăng ký/huỷ project), 7 test snapshot Python đạt, `jodex setup` chạy lại 6/6 ok, cache Codex khớp hash với `plugin/`. Ảnh chụp dashboard (sáng và tối) bằng Chrome headless: hiển thị đúng 5 run, 60% verified, 1 gate catch. Lỗi bảng tràn làm cắt pill status đã sửa.
+Kiểm tra trên source hiện tại: typecheck sạch, `npm test` 18/18 đạt (thêm test board: escape `</script>`, host/model của Codex, đăng ký/huỷ project), 7 test snapshot Python đạt, `jevmind setup` chạy lại 6/6 ok, cache Codex khớp hash với `plugin/`. Ảnh chụp dashboard (sáng và tối) bằng Chrome headless: hiển thị đúng 5 run, 60% verified, 1 gate catch. Lỗi bảng tràn làm cắt pill status đã sửa.
 
 Chưa review độc lập. Status: `review_required`.
 
 ## Sửa theo ponytail review của M1 (finding 1 và 2)
 
-1. **Sửa file critical qua shell vẫn được `verified`.** Mỗi prompt giờ đều ghi baseline, và mỗi lần Stop đều gộp các file đã đổi từ baseline vào run, kể cả run do `jodex check` mở với `touched` rỗng.
+1. **Sửa file critical qua shell vẫn được `verified`.** Mỗi prompt giờ đều ghi baseline, và mỗi lần Stop đều gộp các file đã đổi từ baseline vào run, kể cả run do `jevmind check` mở với `touched` rỗng.
 2. **Run critical không bao giờ đóng.** Khi agent đã báo đúng trạng thái, run đóng dù trạng thái là gì; lần sửa file tiếp theo mở run mới.
 
-Thêm hai test hồi quy. Cả hai **fail trên code cũ** (đã tạm khôi phục logic cũ để kiểm) và đạt trên bản sửa. `npm test` 20/20 đạt, typecheck sạch. Đã build lại, chạy lại `jodex setup` 6/6 ok, cache Codex khớp hash.
+Thêm hai test hồi quy. Cả hai **fail trên code cũ** (đã tạm khôi phục logic cũ để kiểm) và đạt trên bản sửa. `npm test` 20/20 đạt, typecheck sạch. Đã build lại, chạy lại `jevmind setup` 6/6 ok, cache Codex khớp hash.
 
-Finding 3 (dọn `.jodex/sessions/`), 4 (băm toàn repo nhiều lần) và 5 (log lỗi bỏ qua `JODEX_HOME`) còn mở.
+Finding 3 (dọn `.jevmind/sessions/`), 4 (băm toàn repo nhiều lần) và 5 (log lỗi bỏ qua `JEVMIND_HOME`) còn mở.
 
 ## Jev D1 thật trên optimize-lab (20/11/2026)
 
-Bật `[jev] mode = "enforce"`, `consent = true`, `data_level = 2` trong optimize-lab. Key được nạp qua `jodex key` (đọc từ `.env.local`, không in ra).
+Bật `[jev] mode = "enforce"`, `consent = true`, `data_level = 2` trong optimize-lab. Key được nạp qua `jevmind key` (đọc từ `.env.local`, không in ra).
 
 | Prompt | Host | Jev (jev-1.14.0) | Hành động | Kết quả |
 |---|---|---|---|---|
@@ -168,9 +168,9 @@ Chạy thật trên optimize-lab (working tree còn bẩn với thay đổi từ
 
 | Run | Host | Diễn biến | Kết quả |
 |---|---|---|---|
-| B1 `review:` applyDiscount | Claude haiku | implement → check → `review start` → `jodex:reviewer` → R0 có 4 finding (3 blocker, Jev xác nhận với p 1.00/0.96/0.61) | Lộ ra **lỗi phạm vi**: diff so với HEAD kéo cả thay đổi của task khác. Đã sửa. |
+| B1 `review:` applyDiscount | Claude haiku | implement → check → `review start` → `jevmind:reviewer` → R0 có 4 finding (3 blocker, Jev xác nhận với p 1.00/0.96/0.61) | Lộ ra **lỗi phạm vi**: diff so với HEAD kéo cả thay đổi của task khác. Đã sửa. |
 | B2 `review:` subtotal | Claude haiku | R0 có 1 blocker (Jev p 0.97) nói về những dòng trong cùng file nhưng thuộc task trước | Lộ ra lỗi phạm vi bên trong file. Đã sửa bằng `baseFiles`. Agent giữ nguyên thay đổi của developer và hỏi lại, không tự revert. |
-| C1 `collab:` cartTotal | Codex gpt-6.1-sol | `plan start` → spawn planner → plan lưu lại → `plan accept` → test trước → implement → check → `review start` → spawn reviewer → R0 không có blocker | `review_required` vì Jev nâng risk lên critical, cần `jodex accept` của developer; run đóng. 122 giây. |
+| C1 `collab:` cartTotal | Codex gpt-6.1-sol | `plan start` → spawn planner → plan lưu lại → `plan accept` → test trước → implement → check → `review start` → spawn reviewer → R0 không có blocker | `review_required` vì Jev nâng risk lên critical, cần `jevmind accept` của developer; run đóng. 122 giây. |
 
 Board (chụp ở chế độ tối) hiển thị đúng 11 run, mode, các vòng review, 8 quyết định D1 và 4 quyết định D4. Calibration: Jev khắt khe hơn luật file trong 4/6 lần; change prediction 6/6.
 
@@ -188,23 +188,23 @@ Unit/integration test: 47/47 đạt, typecheck sạch. Các phần mới đượ
 
 | Kiểm tra thật trên optimize-lab | Kết quả |
 |---|---|
-| Claude làm (haiku), Codex review | `jodex review start` → hook khởi chạy `codex exec --sandbox read-only` → R0 `no_blocking_findings` sau 18 s → verified |
+| Claude làm (haiku), Codex review | `jevmind review start` → hook khởi chạy `codex exec --sandbox read-only` → R0 `no_blocking_findings` sau 18 s → verified |
 | Codex làm (gpt-6.1-sol), Claude review | `review wait` chạy trong sandbox của Codex; hook khởi chạy Claude Sonnet từ bên ngoài sandbox → 10 s, 0,031 USD, 1 finding không chặn → verified |
 | Reviewer chéo hết quota (Codex usage limit) | R0 bị ghi `invalid` kèm thông báo lỗi; trạng thái `review_required`; một run sau đó dùng `--same-host` để có R1 ✓ |
 | D2 với `git reset --hard` | bị chặn bằng luật; agent không reset và báo lại cho developer |
 | D2 với `curl` (Jev) | safe 0,99, được phép, 344 ms |
 | Lỗi tìm ra khi chạy thật | heredoc và subshell bị coi là lệnh lạ, và timeout 800 ms quá ngắn vì Jev luôn cold start trong hook. Đã sửa: nhận diện heredoc, timeout D2 1500 ms, D1 2500 ms |
-| `jodex calibrate` (20 run, 28 quyết định) | D1 change Brier 0,0012. D1 risk Brier 0,26: Jev quá tự tin (dải 0,8–1,0 đúng 71%, dải 0,6–0,8 đúng 0%). Ngưỡng chưa dời vì mới có 12/20 mẫu, đúng cơ chế bảo vệ |
+| `jevmind calibrate` (20 run, 28 quyết định) | D1 change Brier 0,0012. D1 risk Brier 0,26: Jev quá tự tin (dải 0,8–1,0 đúng 71%, dải 0,6–0,8 đúng 0%). Ngưỡng chưa dời vì mới có 12/20 mẫu, đúng cơ chế bảo vệ |
 
 Hai lỗi do script chạy thử của tôi, không phải của harness:
 - `claude -p` đọc stdin nên nuốt cả danh sách prompt (đã chuyển stdin sang `/dev/null`);
-- vì vậy ba run b1, b2, b3 bị nhiễm và đã được `jodex reject`.
+- vì vậy ba run b1, b2, b3 bị nhiễm và đã được `jevmind reject`.
 
 ## Codex review chéo code harness (21/11/2026)
 
 | Vòng | Thời gian | Kết quả |
 |---|---|---|
-| R0 | 554 s | 11 blocking, 3 nonblocking. Gồm:<br>• lách bộ lọc lệnh chỉ đọc bằng dấu nháy;<br>• worker ghi qua shell khi đang bị khoá;<br>• agent tự `accept`;<br>• sửa qua shell không có trong diff review;<br>• `jodex check` ghi đè kết quả reviewer;<br>• secret trong lệnh check gửi đi nguyên văn;<br>• Basic auth không bị che;<br>• lệnh check đổi mà bằng chứng cũ vẫn được tính;<br>• Stop chỉ tìm chuỗi con;<br>• blocker bị phản bác có thể bị review mới thay thế. |
+| R0 | 554 s | 11 blocking, 3 nonblocking. Gồm:<br>• lách bộ lọc lệnh chỉ đọc bằng dấu nháy;<br>• worker ghi qua shell khi đang bị khoá;<br>• agent tự `accept`;<br>• sửa qua shell không có trong diff review;<br>• `jevmind check` ghi đè kết quả reviewer;<br>• secret trong lệnh check gửi đi nguyên văn;<br>• Basic auth không bị che;<br>• lệnh check đổi mà bằng chứng cũ vẫn được tính;<br>• Stop chỉ tìm chuỗi con;<br>• blocker bị phản bác có thể bị review mới thay thế. |
 | R1 | 428 s | 4 sửa xong, 10 một phần, 3 mới (tester ghi qua shell, D4 ở mức dữ liệu 1, che giá trị secret trong env) |
 | R2 | 413 s | 6 một phần, 1 mới (hash không phân biệt symlink với file thường) |
 | R3 | 257 s | không có finding mới; 5 một phần, đã sửa ở F4 |
@@ -212,7 +212,7 @@ Hai lỗi do script chạy thử của tôi, không phải của harness:
 Sau F4:
 - `npm test` 67/67 đạt, typecheck sạch;
 - kiểm thật hai chiều trên optimize-lab đều `verified`, có R0 từ provider kia;
-- chạy kiểm thật còn tìm ra một hồi quy (lệnh `jodex review wait 2>&1; echo` bị chặn khi đang khoá) và đã sửa, kèm test.
+- chạy kiểm thật còn tìm ra một hồi quy (lệnh `jevmind review wait 2>&1; echo` bị chặn khi đang khoá) và đã sửa, kèm test.
 
 Các giới hạn còn lại được ghi ở spec §17.1.
 
@@ -222,25 +222,25 @@ Baseline hiện tại: npm test 67/67 exit0; npm run typecheck exit0; AI DevKit 
 
 Không gọi provider/Jev/model hoặc tự sửa global thật trong đợt DX này. Kiểm native visual footer là gate riêng: installed Codex feature có nhưng off; user cần /experimental và /statusline selection. Chưa xác nhận footer đã xuất hiện trong TUI thật.
 
-DX1 independent validation: `npm test`75/75 pass exit0; `npm run typecheck`, `npm run build`, `git diff --check` exit0. Built entrypoint smoke5/5 pass: explicit Claude install/remove config, synthetic observed Jev/wait role, MCP discovery/thread switch/error recovery, unchanged run+decision bytes. Test additions: test/statusline.test.ts4 initial TDD + test/statusline-regression.test.ts4 independent regressions; controls, secrets, malformed/linked settings, backup/modes, current vs other session covered. Actual command stdout/stderr/exit+source hashes: `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-inline-independent-4gf2byel/results.json`; parent đã đọc actual outputs. Không gọi provider/Jev hoặc thay global. Chờ final reviewer; native rendered footer chưa được quan sát.
+DX1 independent validation: `npm test`75/75 pass exit0; `npm run typecheck`, `npm run build`, `git diff --check` exit0. Built entrypoint smoke5/5 pass: explicit Claude install/remove config, synthetic observed Jev/wait role, MCP discovery/thread switch/error recovery, unchanged run+decision bytes. Test additions: test/statusline.test.ts4 initial TDD + test/statusline-regression.test.ts4 independent regressions; controls, secrets, malformed/linked settings, backup/modes, current vs other session covered. Actual command stdout/stderr/exit+source hashes: `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jevmind-inline-independent-4gf2byel/results.json`; parent đã đọc actual outputs. Không gọi provider/Jev hoặc thay global. Chờ final reviewer; native rendered footer chưa được quan sát.
 
 DX1 final reviewer đã đọc actual outputs và before/after source, xác nhận 8 hashes hiện hành và REVIEW_PASS không blocker cho scope local. Bằng chứng bền: [inline-statusline-report.json](inline-statusline-report.json), gồm actual stdout/stderr/exit, source hashes, no-provider/global-change flags và gates. Smoke script dùng một lần đã tự dọn sandbox; script được xoá sau review, regression tests được giữ. **Native visual activation chưa kiểm**: không coi JSON/protocol smoke là bằng chứng đã render trong TUI. Current outcome review_required cho gate đó; developer acceptance tách riêng.
 
-DX1 native registration failure: actual global effective Jodex transport had command=node, args=['${PLUGIN_ROOT}/dist/jodex.mjs','statusline','--mcp']; launching that argv exits1 MODULE_NOT_FOUND. User had enabled plugin and experimental flag. Isolated native reproduction at `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-native-registration-ftp0kzxv` confirms installed0.171.0 leaves both root placeholders literal. No provider calls. Existing local75/protocol5 evidence remains historical for direct entrypoint, not proof of native plugin startup; native registration fix and evidence now required.
+DX1 native registration failure: actual global effective Jevmind transport had command=node, args=['${PLUGIN_ROOT}/dist/jevmind.mjs','statusline','--mcp']; launching that argv exits1 MODULE_NOT_FOUND. User had enabled plugin and experimental flag. Isolated native reproduction at `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jevmind-native-registration-ftp0kzxv` confirms installed0.171.0 leaves both root placeholders literal. No provider calls. Existing local75/protocol5 evidence remains historical for direct entrypoint, not proof of native plugin startup; native registration fix and evidence now required.
 
-F1 final evidence: native isolated before/after reproduction đạt; full77/typecheck/build/diff exit0 và reviewer REVIEW_PASS. Parent refresh riêng actual Jodex plugin rồi đọc actual native app-server mcpServerStatus/list (per-invocation configured MCP map rỗng, không persist): toolsError=null, tool jodex_statusline có đúng openai/ui statusline resource. Không tạo model turn/provider call. Durable actual outputs, current hashes và actual-machine discovery ở [native-statusline-registration-report.json](native-statusline-registration-report.json). F1 đã sửa launcher; user cần restart TUI cũ và chọn Jodex. Actual rendering/visual acceptance vẫn chưa quan sát.
+F1 final evidence: native isolated before/after reproduction đạt; full77/typecheck/build/diff exit0 và reviewer REVIEW_PASS. Parent refresh riêng actual Jevmind plugin rồi đọc actual native app-server mcpServerStatus/list (per-invocation configured MCP map rỗng, không persist): toolsError=null, tool jevmind_statusline có đúng openai/ui statusline resource. Không tạo model turn/provider call. Durable actual outputs, current hashes và actual-machine discovery ở [native-statusline-registration-report.json](native-statusline-registration-report.json). F1 đã sửa launcher; user cần restart TUI cũ và chọn Jevmind. Actual rendering/visual acceptance vẫn chưa quan sát.
 
 ## MR · Model routing P0+P1 (21/11/2026)
 
-Kết quả thực tế trên source hiện tại (`jodex check`, run 20261121-68d96b): `npm test` 111/111 pass, `npx tsc --noEmit -p .` exit 0, `python3 -m unittest discover -s tests` 7/7 OK; `npm run build` exit 0. Test mới: `test/model-routing.test.ts` (20 test: lọc agent-message; mở run collaborative lazy và lưu mode khi deny; thư mục tạm, đường dẫn ngoài repo, symlink cha và symlink trong repo; `jodex review plan` cho worker, helper bị chặn; handback/retry rỗng/text sau handback; attempt và key; propose L2 cho critical, L0 chỉ tester, apply như shadow kèm cảnh báo; `mismatchOf`; child không bound giữ unknown, Codex untyped unknown; `plan start` gắn session; board; `&` đơn; lint/`--fix`/`--outDir` kể cả trong dấu nháy; key planner sau cancel). `test/crossreview.test.ts` viết lại: hai chiều review với model yêu cầu/thực tế, worker không round hoặc round cũ không đụng round mới, launch một lần qua marker, model Claude chốt lúc `review start`, nhiều key `modelUsage`, banner Codex thiếu model, `runPlanReview` hai provider và no-op khi tắt cross review. Không gọi provider thật hay Jev thật (CLI giả, D1 stub).
+Kết quả thực tế trên source hiện tại (`jevmind check`, run 20261121-68d96b): `npm test` 111/111 pass, `npx tsc --noEmit -p .` exit 0, `python3 -m unittest discover -s tests` 7/7 OK; `npm run build` exit 0. Test mới: `test/model-routing.test.ts` (20 test: lọc agent-message; mở run collaborative lazy và lưu mode khi deny; thư mục tạm, đường dẫn ngoài repo, symlink cha và symlink trong repo; `jevmind review plan` cho worker, helper bị chặn; handback/retry rỗng/text sau handback; attempt và key; propose L2 cho critical, L0 chỉ tester, apply như shadow kèm cảnh báo; `mismatchOf`; child không bound giữ unknown, Codex untyped unknown; `plan start` gắn session; board; `&` đơn; lint/`--fix`/`--outDir` kể cả trong dấu nháy; key planner sau cancel). `test/crossreview.test.ts` viết lại: hai chiều review với model yêu cầu/thực tế, worker không round hoặc round cũ không đụng round mới, launch một lần qua marker, model Claude chốt lúc `review start`, nhiều key `modelUsage`, banner Codex thiếu model, `runPlanReview` hai provider và no-op khi tắt cross review. Không gọi provider thật hay Jev thật (CLI giả, D1 stub).
 
 Review chéo (Codex gpt-6.1-sol, read-only): run 4a4019 R0 blocker `&` đơn → sửa `src/hooks.ts` + test; R1 blocker lint/`--fix` → sửa ở run 68d96b (`src/commands.ts`) + test, kèm key planner (`src/team.ts`); run 68d96b R0 blocker flag trong dấu nháy → sửa + test. Chưa kiểm: live host (MR.5: dòng `reasoning effort:` trong banner Codex 0.171.0, model của child Codex trong hook, hai chiều review thật, nested CLI tắt hook) và developer acceptance.
 
 MR live (MR.5, 21/11/2026, optimize-lab, Codex 0.171.0 và Claude Code 2.1.323): log thô trong scratchpad của phiên (mr5-codex*.log).
-- Claude → Codex reviewer (run jodex-harness 68d96b, R0–R3): observed `gpt-6.1-sol`, effort `medium`, nguồn `codex-banner`; banner Astra in `reasoning effort: high` → regex effort đúng.
+- Claude → Codex reviewer (run jevmind-harness 68d96b, R0–R3): observed `gpt-6.1-sol`, effort `medium`, nguồn `codex-banner`; banner Astra in `reasoning effort: high` → regex effort đúng.
 - Claude typed subagent: tester observed `claude-opus-5-5` (claude-subagent-transcript); planner usage thật 28 in / 12308 out / 62834 cache write / 470050 cache read; worker usage từ transcript 34 MB đọc trong 0.18 s.
 - Codex → Claude reviewer (optimize-lab run 20261121-f6415d, verified): 0 hook lỗi; run riêng của phiên Codex với `promptAt`; reviewer observed `claude-sonnet-5-5`, usage 6 in / 1119 out / 5693 cache write / 21356 cache read, $0.036, 10.2 s; `mismatch` unknown (alias `sonnet`). Token worker Codex unknown đúng thiết kế (`codex exec` chỉ in `tokens used` ra stdout).
-- Lỗi tìm thấy khi chạy live và đã sửa: CLI lấy run mở của phiên khác (run 20261120-5aab29 bị lẫn) → chọn theo phiên, bỏ session file quá 30 phút; hook Codex "Failed" sau khi plugin được làm mới → nguyên nhân là hook chưa được trust lại (sau `/hooks` trust, 0 lỗi); file hooks Codex chuyển sang `jodex hook` từ PATH.
+- Lỗi tìm thấy khi chạy live và đã sửa: CLI lấy run mở của phiên khác (run 20261120-5aab29 bị lẫn) → chọn theo phiên, bỏ session file quá 30 phút; hook Codex "Failed" sau khi plugin được làm mới → nguyên nhân là hook chưa được trust lại (sau `/hooks` trust, 0 lỗi); file hooks Codex chuyển sang `jevmind hook` từ PATH.
 - Kiểm tra cuối: `npm test` 124/124, typecheck, python 7/7, build exit 0.
 
-RC (run 20261121-74b7d2): `jodex check` trên source hiện tại: `npm test` 129/129, typecheck exit 0, python 7/7; `npm run build` exit 0. Live: trong sandbox `workspace-write` của Codex 0.171.0, `env` có `CODEX_SANDBOX=seatbelt`, `CODEX_SANDBOX_NETWORK_DISABLED=1`, `CODEX_SESSION_ID` (chạy trong repo tạm); `codexHooksState()` trên máy thật trả `trusted 4/4 (hooks/codex-hooks.json)`. Cổng lệnh: bốn lệnh từng bị chặn nhầm giờ được phép; các trường hợp lách (`&`, `$(...)`, backtick, redirect, `sed -i`/`w`) vẫn bị chặn (test trong `test/xreview-fixes.test.ts`, `test/model-routing.test.ts`). Chưa test: guard sandbox của `waitPlanReview` (một điều kiện, cùng nguyên nhân với `review wait`, có test).
+RC (run 20261121-74b7d2): `jevmind check` trên source hiện tại: `npm test` 129/129, typecheck exit 0, python 7/7; `npm run build` exit 0. Live: trong sandbox `workspace-write` của Codex 0.171.0, `env` có `CODEX_SANDBOX=seatbelt`, `CODEX_SANDBOX_NETWORK_DISABLED=1`, `CODEX_SESSION_ID` (chạy trong repo tạm); `codexHooksState()` trên máy thật trả `trusted 4/4 (hooks/codex-hooks.json)`. Cổng lệnh: bốn lệnh từng bị chặn nhầm giờ được phép; các trường hợp lách (`&`, `$(...)`, backtick, redirect, `sed -i`/`w`) vẫn bị chặn (test trong `test/xreview-fixes.test.ts`, `test/model-routing.test.ts`). Chưa test: guard sandbox của `waitPlanReview` (một điều kiện, cùng nguyên nhân với `review wait`, có test).

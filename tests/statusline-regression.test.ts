@@ -21,7 +21,7 @@ const filesHash = (root: string) => {
       else hash.update(file).update(fs.readFileSync(file));
     }
   };
-  visit(path.join(root, '.jodex'));
+  visit(path.join(root, '.jevmind'));
   return hash.digest('hex');
 };
 
@@ -45,15 +45,15 @@ test('status footer uses only the displayed project and session and does not mut
   assert.equal(filesHash(root), before, 'status display must not expire or save an overdue wait');
   assert.match(renderStatusline(state(otherRoot, 'A'), 'claude-code'), /Implementor: Codex/);
   assert.match(renderStatusline(state(root, 'missing'), 'claude-code'), /Stage: idle/);
-  assert.equal(renderStatusline({ cwd: root }, 'claude-code'), 'JODEX · session unknown');
+  assert.equal(renderStatusline({ cwd: root }, 'claude-code'), 'JEVMIND · session unknown');
   assert.equal(renderStatusline({ cwd: os.tmpdir(), session_id: 'A' }, 'claude-code'), '');
 });
 
 test('decision footer distinguishes Jev, fallback, disabled and lack of consent', () => {
   const root = tempRepo(); writeConfig(root, {});
-  const conf = path.join(root, '.jodex', 'config.toml');
+  const conf = path.join(root, '.jevmind', 'config.toml');
   const base = fs.readFileSync(conf, 'utf8');
-  const log = path.join(root, '.jodex', 'decisions.jsonl');
+  const log = path.join(root, '.jevmind', 'decisions.jsonl');
   const set = (mode: string, consent: boolean) => fs.writeFileSync(conf, `${base}\n[jev]\nmode = "${mode}"\nconsent = ${consent}\n`);
   const entry = (source: string, actedOn = true) => fs.writeFileSync(log, JSON.stringify({ point: 'D1', source, sessionId: 'S', actedOn, latencyMs: 241 }) + '\n');
   assert.match(renderStatusline(state(root, 'S'), 'claude-code'), /Rules \(Jev off\)/);
@@ -66,7 +66,7 @@ test('decision footer distinguishes Jev, fallback, disabled and lack of consent'
 });
 
 test('isolated Claude settings retain edits, file modes and a private backup', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-footer-cfg-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-footer-cfg-'));
   const settings = path.join(dir, 'settings.json');
   const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { env: { ...process.env, CLAUDE_CONFIG_DIR: dir }, encoding: 'utf8' });
   fs.writeFileSync(settings, '{"theme":"dark","other":{"value":12}}\n', { mode: 0o640 });
@@ -90,7 +90,7 @@ test('MCP responds after errors, routes each thread, and does not emit notificat
   createRun(root, 'A', '', 'codex', '');
   const second = createRun(root, 'B', '', 'codex', '');
   second.mode = 'collaborative'; saveRun(root, second);
-  const read = (id: number, session: string) => ({ jsonrpc: '2.0', id, method: 'resources/read', params: { uri: 'ui://jodex/footer', _meta: { 'com.openai/codex-statusline-state': { thread: { id: session, workspace: { cwd: root }, agent: { state: 'thinking' } } } } } });
+  const read = (id: number, session: string) => ({ jsonrpc: '2.0', id, method: 'resources/read', params: { uri: 'ui://jevmind/footer', _meta: { 'com.openai/codex-statusline-state': { thread: { id: session, workspace: { cwd: root }, agent: { state: 'thinking' } } } } } });
   const messages = ['{broken', JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }), JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'resources/read', params: { uri: 'ui://wrong' } }), JSON.stringify(read(2, 'A')), JSON.stringify(read(3, 'B')), JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'ping' })].join('\n') + '\n';
   const before = filesHash(root);
   const proc = spawnSync(process.execPath, [cli, 'statusline', '--mcp'], { input: messages, encoding: 'utf8' });

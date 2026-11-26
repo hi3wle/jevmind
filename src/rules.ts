@@ -46,7 +46,7 @@ function realParent(abs: string): string {
 
 export const isOutsideRoot = (rel: string) => rel === '..' || rel.startsWith('../') || path.isAbsolute(rel);
 
-// Scratch space outside the repository (OS temp dir, $TMPDIR, /tmp): Jodex ignores writes there.
+// Scratch space outside the repository (OS temp dir, $TMPDIR, /tmp): Jevmind ignores writes there.
 let tempRoots: string[] | null = null;
 export function isTempPath(root: string, rel: string): boolean {
   tempRoots ??= [os.tmpdir(), process.env.TMPDIR, process.platform === 'win32' ? undefined : '/tmp'].flatMap((d) => {
@@ -66,4 +66,4 @@ export function patchPaths(patch: string): string[] {
   return out;
 }
 
-export const isJodexPath = (rel: string) => rel === '.jodex' || rel.startsWith('.jodex/');
+export const isJevmindPath = (rel: string) => rel === '.jevmind' || rel.startsWith('.jevmind/');

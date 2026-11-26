@@ -1,12 +1,12 @@
-# Jodex — Adaptive Coding Harness
+# Jevmind — Adaptive Coding Harness
 
-Jodex is an installable outer harness for coding agents. It is specified in [coding-harness-v4.md](coding-harness-v4.md):
+Jevmind (formerly Jodex) is an installable outer harness for coding agents: Jev decides the workflow and risk, Claude Code and Codex do the work. It is specified in [coding-harness-v4.md](coding-harness-v4.md):
 
-- `jodex setup` installs it once per machine;
-- `jodex init` enables it in a project;
+- `jevmind setup` installs it once per machine;
+- `jevmind init` enables it in a project;
 - the developer then prompts Claude Code, Codex or another supported agent as usual.
 
-Jodex classifies the task and selects solo, review or collaborative mode. It coordinates plan → challenge → implement → test → review → correct → verify, and reports an evidence-backed completion status.
+Jevmind classifies the task and selects solo, review or collaborative mode. It coordinates plan → challenge → implement → test → review → correct → verify, and reports an evidence-backed completion status.
 
 Decisions use a System 1 layer: deterministic rules first, then the Jev model from TypeSafe, then probability thresholds. The host agent (System 2) writes the code.
 
@@ -23,58 +23,67 @@ See [coding-harness-v4.md](coding-harness-v4.md) §16–§17 for what was built 
 Requires Node ≥ 22.18, git, and Claude Code and/or Codex.
 
 ```sh
-npx jodex@latest setup             # once per machine; run it again to update
+npx jevmind@latest setup             # once per machine; run it again to update
 ```
 
-`setup` installs that version of `jodex` globally, so hooks call the installed command and never download at run time. It asks which agents you use (Claude Code, Codex or both; arrow keys and space, pre-checked with the ones it finds, or `--agent claude,codex`), saves the choice in `~/.jodex/config.toml` and installs the Jodex plugin into those agents with their own marketplace commands. With one agent, every role runs on it (Claude: planner Opus, tester Haiku or Sonnet for critical risk, same-host reviewer; Codex: planner Astra, tester Luna, same-host reviewer); with both, each reviews the other's work. If no TypeSafe key is stored, it offers to save one for Jev. `jodex init` asks again only to override the agents for that project. For Codex, open `codex`, run `/hooks`, and trust the Jodex hooks once (again after an update changes them). Codex hooks run `jodex hook` from `PATH`, because Codex 0.171.0 leaves plugin-root placeholders in hook commands unexpanded; start Codex where `command -v jodex` succeeds. Run `jodex setup --statusline` with the installed command, not through `npx`.
+`setup` installs that version of `jevmind` globally, so hooks call the installed command and never download at run time. It asks which agents you use (Claude Code, Codex or both; arrow keys and space, pre-checked with the ones it finds, or `--agent claude,codex`), saves the choice in `~/.jevmind/config.toml` and installs the Jevmind plugin into those agents with their own marketplace commands. With one agent, every role runs on it (Claude: planner Opus, tester Haiku or Sonnet for critical risk, same-host reviewer; Codex: planner Astra, tester Luna, same-host reviewer); with both, each reviews the other's work. If no TypeSafe key is stored, it offers to save one for Jev. `jevmind init` asks again only to override the agents for that project. For Codex, open `codex`, run `/hooks`, and trust the Jevmind hooks once (again after an update changes them). Codex hooks run `jevmind hook` from `PATH`, because Codex 0.171.0 leaves plugin-root placeholders in hook commands unexpanded; start Codex where `command -v jevmind` succeeds. Run `jevmind setup --statusline` with the installed command, not through `npx`.
 
 ```sh
 cd /path/to/your/project           # must be a git repository
-jodex init                         # shows the changes, asks before writing
+jevmind init                         # shows the changes, asks before writing
 claude                             # or: codex — then prompt as usual
 ```
 
 ## Your first run
 
-1. **First file edit:** Jodex opens a run for the task. Edits through the shell are caught when the agent stops.
-2. **Before finishing:** the agent runs `jodex check`. It runs the project's checks (from `.jodex/config.toml`) and binds each result to the exact source it ran on.
+1. **First file edit:** Jevmind opens a run for the task. Edits through the shell are caught when the agent stops.
+2. **Before finishing:** the agent runs `jevmind check`. It runs the project's checks (from `.jevmind/config.toml`) and binds each result to the exact source it ran on.
 3. **Stop gate:**
-   - The agent must end with `Jodex status: <status>`: `verified`, `review_required`, `failed_verification` or `blocked`.
+   - The agent must end with `Jevmind status: <status>`: `verified`, `review_required`, `failed_verification` or `blocked`.
    - An unsupported "done" is sent back once with the real gates.
    - A second stop always goes through, so the agent cannot loop.
    - Once the agent reports the status, the run ends. The next edit starts a new run, so a later task never inherits an earlier task's files or risk.
-4. **Risk and review:** a critical path, a `review:`/`collab:` prompt prefix, or Jev's recommendation puts the run in review or collaborative mode. The reviewer is the other provider and read-only. Critical runs also need your approval: in Claude Code the agent asks in a dialog (Accept, Reject, Review the diff first); in Codex, or any time, run `jodex accept`.
+4. **Risk and review:** a critical path, a `review:`/`collab:` prompt prefix, or Jev's recommendation puts the run in review or collaborative mode. The reviewer is the other provider and read-only. Critical runs also need your approval: in Claude Code the agent asks in a dialog (Accept, Reject, Review the diff first); in Codex, or any time, run `jevmind accept`.
 5. **Dangerous commands:** `rm -rf ~`, `git push --force`, `git reset --hard` and `git clean -f` are always denied. Unusual commands are judged by Jev.
 
 | Command | Purpose |
 |---|---|
-| `jodex check` | run the checks, print the status and the `Next:` step |
-| `jodex review start [--same-host] [--evidence <file>]` / `jodex review wait` | independent review: by the other provider by default (Claude's work by Codex and the reverse), or a same-host subagent. The reviewer gets the session's last 5 prompts; `--evidence` attaches a screenshot or log (project or temp dir, ≤5 MB, never secret-looking files) |
-| `jodex plan start` / `jodex plan accept\|revise\|block` / `jodex test start` | collaborative mode: planner subagent, your challenge, tester subagent |
-| `jodex cancel` | stop waiting for a subagent that will not report |
-| `jodex calibrate [--apply]` | how well Jev's probabilities match what happened; `--apply` moves the risk cut (also automatic every 10 closed runs) |
-| `jodex status` / `jodex resume` | show the open run / re-ground a new session |
-| `jodex setup --statusline` / `jodex uninstall --statusline` | opt into / remove the Claude inline footer, preserving an existing footer |
-| `jodex statusline [--mcp]` | renderer used by Claude's command footer / Codex's read-only MCP footer |
-| `jodex accept` / `jodex reject` | record your decision and close the run |
-| `jodex discard [run]` | close a test or abandoned run; calibration ignores it |
-| `jodex board [--open]` | local dashboard of all runs (`~/.jodex/board/board.html`, refreshed after every run) |
-| `pbpaste \| jodex key` | store the TypeSafe key for Jev decisions (`jodex init --jev` enables them per project) |
-| `jodex doctor` | what is installed |
-| `jodex uninstall --project [--purge]` | revert `init` in this project |
-| `jodex uninstall` | remove Jodex from this machine |
+| `jevmind check` | run the checks, print the status and the `Next:` step |
+| `jevmind review start [--same-host] [--evidence <file>]` / `jevmind review wait` | independent review: by the other provider by default (Claude's work by Codex and the reverse), or a same-host subagent. The reviewer gets the session's last 5 prompts; `--evidence` attaches a screenshot or log (project or temp dir, ≤5 MB, never secret-looking files) |
+| `jevmind plan start` / `jevmind plan accept\|revise\|block` / `jevmind test start` | collaborative mode: planner subagent, your challenge, tester subagent |
+| `jevmind cancel` | stop waiting for a subagent that will not report |
+| `jevmind calibrate [--apply]` | how well Jev's probabilities match what happened; `--apply` moves the risk cut (also automatic every 10 closed runs) |
+| `jevmind status` / `jevmind resume` | show the open run / re-ground a new session |
+| `jevmind setup --statusline` / `jevmind uninstall --statusline` | opt into / remove the Claude inline footer, preserving an existing footer |
+| `jevmind statusline [--mcp]` | renderer used by Claude's command footer / Codex's read-only MCP footer |
+| `jevmind accept` / `jevmind reject` | record your decision and close the run |
+| `jevmind discard [run]` | close a test or abandoned run; calibration ignores it |
+| `jevmind board [--open]` | local dashboard of all runs (`~/.jevmind/board/board.html`, refreshed after every run) |
+| `pbpaste \| jevmind key` | store the TypeSafe key for Jev decisions (`jevmind init --jev` enables them per project) |
+| `jevmind doctor` | what is installed |
+| `jevmind uninstall --project [--purge]` | revert `init` in this project |
+| `jevmind uninstall` | remove Jevmind from this machine |
 
 Development: `npm run typecheck`, `npm test`, `npm run build`.
 
 ## Live board and model routing
 
-New projects start with `mode = "apply"` under `[models]` in `.jodex/config.toml`. Each role gets a model at effort medium; only the planner goes to high, on critical runs. A critical run moves the other roles to a stronger model instead. Claude: planner Opus, tester Haiku (Sonnet when critical), reviewer Sonnet (Opus when critical). Codex: planner Astra, tester Luna high (Sol medium when critical), reviewer Sol (Astra when critical). Your own session is the implementor, so Jodex only suggests its model (Sonnet, Opus when critical; Sol medium on every run) at the start of a task. Full table: coding-harness-v4.md §17. To limit which models and efforts each step may use, run `jodex models`. It is also offered at the end of setup, and you can run it again anytime. Keep the recommendation, or pick the allowed models and efforts for each step, review them, and save. Jodex then chooses within your limits.
+New projects start with `mode = "apply"` under `[models]` in `.jevmind/config.toml`. Each role gets a model at effort medium; only the planner goes to high, on critical runs. A critical run moves the other roles to a stronger model instead. Claude: planner Opus, tester Haiku (Sonnet when critical), reviewer Sonnet (Opus when critical). Codex: planner Astra, tester Luna high (Sol medium when critical), reviewer Sol (Astra when critical). Your own session is the implementor, so Jevmind only suggests its model (Sonnet, Opus when critical; Sol medium on every run) at the start of a task. Full table: coding-harness-v4.md §17. To limit which models and efforts each step may use, run `jevmind models`. It is also offered at the end of setup, and you can run it again anytime. Keep the recommendation, or pick the allowed models and efforts for each step, review them, and save. Jevmind then chooses within your limits.
 
-Set `mode = "off"` to use host defaults, or `"shadow"` to record proposals only. Running `jodex init` again preserves existing settings. Older configs without `[models]` use host defaults.
+Set `mode = "off"` to use host defaults, or `"shadow"` to record proposals only. Running `jevmind init` again preserves existing settings. Older configs without `[models]` use host defaults.
 
-`jodex board --live` shows connected Planner → Implementor → Tester → Reviewer cards, with the recorded activity and Decision/Checks/Outcome gates below. Requested and observed models stay separate; unknown observations remain explicit. Updates arrive through server events with a polling fallback. Select a run by keyboard or click to filter its session; nodes stack on narrow screens. Recorded handoffs and recent activity are not proof a process is alive.
+`jevmind board --live` shows connected Planner → Implementor → Tester → Reviewer cards, with the recorded activity and Decision/Checks/Outcome gates below. Requested and observed models stay separate; unknown observations remain explicit. Updates arrive through server events with a polling fallback. Select a run by keyboard or click to filter its session; nodes stack on narrow screens. Recorded handoffs and recent activity are not proof a process is alive.
 
 For the optional terminal footer, see the [Claude Code and Codex setup guide](docs/statusline.md).
+
+## Migrating from Jodex
+
+Jodex was renamed to Jevmind. To move a machine and its projects:
+
+1. With the old command, remove the old install: `jodex uninstall`.
+2. Keep your settings and Jev key: `mv ~/.jodex ~/.jevmind`.
+3. Install Jevmind: `npx jevmind@latest setup`. In Codex, run `/hooks` and trust the Jevmind hooks; in Claude Code, run `/reload-plugins`.
+4. In each project: `jevmind init`. It renames `.jodex/` to `.jevmind/` and updates the AGENTS.md block and `.gitignore` lines, after you confirm.
 
 ## Repository contents
 
@@ -96,9 +105,9 @@ The v3.2 instruction pack still works as documented in the [archived README](doc
 Install from a checkout instead of npm (`setup` then links the checkout onto your PATH):
 
 ```sh
-git clone https://github.com/hi3wle/jodex-harness.git jodex && cd jodex
+git clone https://github.com/hi3wle/jevmind.git jevmind && cd jevmind
 npm ci && npm run build
-node plugin/dist/jodex.mjs setup
+node plugin/dist/jevmind.mjs setup
 ```
 
 [AGENTS.md](AGENTS.md) defines the engineering policy and the approved-plan workflow. The workflow runs three sequential Codex roles from `.codex/agents/`:
@@ -112,7 +121,7 @@ node plugin/dist/jodex.mjs setup
 The workflow requires `multi_agent_v2` and a trusted project. Review the project configuration before accepting trust.
 
 ```sh
-codex -c 'mcp_servers={}' --disable plugins --disable apps --sandbox workspace-write --ask-for-approval on-request -C /absolute/path/to/jodex-harness
+codex -c 'mcp_servers={}' --disable plugins --disable apps --sandbox workspace-write --ask-for-approval on-request -C /absolute/path/to/jevmind
 ```
 
 Some flags affect more than one invocation:

@@ -9,7 +9,7 @@ title: Hướng dẫn thực hiện và bàn giao
 
 Accepted native plan run37731a. Parent Mode A owns implementation. plugin/board.html renders one keyboard-selectable run card with an ordered Planner→Implementor→Tester→Reviewer list, status glyph/text, connectors, separate observed/requested models and three compact recorded gate summaries. Current awaited role gets aria-current; timed render restores run-button focus, reduced motion disables animation, narrow layouts stack nodes. Existing transport, filters and snapshots remain. src/board.ts adds a read-only activity summary for handoffs/plan challenge/blockers/check failures/closure and ignores stale awaited roles on closed runs. No engine/config/provider changes. Missing Codex hook model observation remains unknown.
 
-Actual native planner was requested as Astra high; source live UI showed planner handoff then implementation activity. Project config still has no models apply section; managed config editing is forbidden, so no auto-routing activation claim. Parent's source-backed board is at port4318 and existing4317 remains untouched. Independent tester/reviewer and visual handoff evidence follow in Jodex packet.
+Actual native planner was requested as Astra high; source live UI showed planner handoff then implementation activity. Project config still has no models apply section; managed config editing is forbidden, so no auto-routing activation claim. Parent's source-backed board is at port4318 and existing4317 remains untouched. Independent tester/reviewer and visual handoff evidence follow in Jevmind packet.
 
 ## MR launch routing (21/11/2026)
 
@@ -17,7 +17,7 @@ Developer confirmed actual planner/tester launch routing and then authorized Mod
 
 Initial implementer RED: three missing-behavior cases failed; parent GREEN/full suite 141/141 plus typecheck/Python7/build passed before final blank-model/nullable-effort changes. Parent reproduced those two gaps with failing tests before fixing them. Independent validation and current-source review follow in planning/testing.
 
-R0 correction: tester start now reconciles session changes before routing, matching review start. Shell-only critical changes therefore raise the current risk before Claude Haiku/Sonnet selection. Parent reproduced the reviewer finding through CLI test start (RED low vs critical), added the one-line reconciliation and reran GREEN. Current final checks/review are recorded by Jodex run 20261121-aed583; human acceptance remains separate.
+R0 correction: tester start now reconciles session changes before routing, matching review start. Shell-only critical changes therefore raise the current risk before Claude Haiku/Sonnet selection. Parent reproduced the reviewer finding through CLI test start (RED low vs critical), added the one-line reconciliation and reran GREEN. Current final checks/review are recorded by Jevmind run 20261121-aed583; human acceptance remains separate.
 
 Áp dụng cho việc triển khai [v4](../../../coding-harness-v4.md). Ghi chú triển khai v3.2 (P1–P5, N1–N3) được lưu ở [docs/history/v3.2/implementation.md](../../history/v3.2/implementation.md).
 
@@ -27,14 +27,14 @@ R0 correction: tester start now reconciles session changes before routing, match
 |---|---|---|
 | Codex | CLI 0.171.0 đã kiểm ở v3.2, auth ChatGPT. Custom roles chạy được khi project đã trust và bật `multi_agent_v2`. | M0 kiểm lại version hiện tại, hooks và MCP. |
 | Claude Code | 2.1.311 đã kiểm ở v3.2, auth Pro. Static profile read-only (Read/Glob/Grep, MCP rỗng, `dontAsk`) giới hạn được file tool trong fixture. | M0 kiểm plugin, hooks và agent definitions. |
-| MCP cá nhân | Stack cá nhân lỗi invalid transport khi khởi động Codex. | Test của Jodex chạy với `mcp_servers` chỉ gồm `jodex`. |
+| MCP cá nhân | Stack cá nhân lỗi invalid transport khi khởi động Codex. | Test của Jevmind chạy với `mcp_servers` chỉ gồm `jevmind`. |
 | Snapshot | `scripts/review_snapshot.py` + 7 test đạt (v3.2 P3). | Nguồn port cho `src/snapshot/`. Giữ nguyên hành vi trước, mở rộng sau. |
 | Jev | Chủ dự án đã có API key. | Key chỉ để trong env hoặc keychain, không ghi vào repo, log hay report. |
-| AI DevKit | CLI 0.77.0, docs/lint dùng được. tmux thiếu nên start/send chưa qualified. | Chỉ dùng cho lifecycle docs của repo này, không phải dependency của Jodex. |
+| AI DevKit | CLI 0.77.0, docs/lint dùng được. tmux thiếu nên start/send chưa qualified. | Chỉ dùng cho lifecycle docs của repo này, không phải dependency của Jevmind. |
 
 ## Quy ước mã nguồn
 
-- Node ≥ 22, TypeScript, ESM. Bin `jodex` trỏ tới `dist/cli.js`.
+- Node ≥ 22, TypeScript, ESM. Bin `jevmind` trỏ tới `dist/cli.js`.
 - Dependency giới hạn ở:
   - `@modelcontextprotocol/sdk`;
   - `@typesafe-ai/sdk`;
@@ -51,7 +51,7 @@ R0 correction: tester start now reconciles session changes before routing, match
   - `roles/` và `adapters/` ở gốc repo.
 - Hook runner đọc JSON từ stdin, chuẩn hoá sự kiện theo từng host, và trả output theo đúng contract đã xác minh ở M0.
 - Engine không phụ thuộc host. Adapter chỉ chuyển đổi định dạng.
-- Mọi ghi file vào cấu hình global đều phải backup trước và có `uninstall` tương ứng. Nội dung managed nằm trong vùng `jodex:begin/end`.
+- Mọi ghi file vào cấu hình global đều phải backup trước và có `uninstall` tương ứng. Nội dung managed nằm trong vùng `jevmind:begin/end`.
 - Test Jev dùng response đã ghi sẵn. Gọi live chỉ diễn ra trong đợt nghiệm thu của milestone, dùng state tổng hợp.
 
 ## Thứ tự trong một milestone
@@ -66,24 +66,24 @@ R0 correction: tester start now reconciles session changes before routing, match
 ## Nhật ký
 
 - **20/11/2026:**
-  - Viết `coding-harness-v4.md` và tự review. Đã sửa: hành vi với prompt không phải task, follow-up trong run đang mở, `jodex_submit_plan`, chuyển writer lock cho tester, phạm vi global/project của `setup`/`init`, no-op ở project chưa init.
+  - Viết `coding-harness-v4.md` và tự review. Đã sửa: hành vi với prompt không phải task, follow-up trong run đang mở, `jevmind_submit_plan`, chuyển writer lock cho tester, phạm vi global/project của `setup`/`init`, no-op ở project chưa init.
   - Lưu tài liệu v3.2 vào `docs/history/v3.2/`.
   - Đổi link static profile trong hai skill harness-* sang README đã lưu.
   - Chưa có code v4.
 - **20/11/2026, M1:**
   - Triển khai `src/` (9 file phẳng) và `plugin/` dùng chung cho hai host. Thêm `.claude-plugin/marketplace.json` và `.agents/plugins/marketplace.json`.
   - Dependency runtime chỉ có `smol-toml`, được bundle. Dev dependency: `typescript` 7.0.2, `esbuild` 0.28.2, `@types/node`.
-  - Hook fail-open: nếu hook lỗi thì trả `{}` và ghi `~/.jodex/hook-errors.log`, để Jodex không làm kẹt agent.
-  - Đã thêm vào `.gitignore`: `node_modules/`, `plugin/dist/`, `.jodex/runs/`, `.jodex/sessions/`, `.env`, `.env.*`.
+  - Hook fail-open: nếu hook lỗi thì trả `{}` và ghi `~/.jevmind/hook-errors.log`, để Jevmind không làm kẹt agent.
+  - Đã thêm vào `.gitignore`: `node_modules/`, `plugin/dist/`, `.jevmind/runs/`, `.jevmind/sessions/`, `.env`, `.env.*`.
 
 ## DX1 · Chuẩn bị inline status (21/11/2026)
 
 Phạm vi đã đọc: src/cli.ts, setup.ts, run.ts, hooks.ts, decisions.ts, team.ts, checks.ts, plugin manifests/hooks, test callers và README. Run store đã có host/model/awaiting/reviews/mode; không cần tạo session manager. Ponytail cho thấy badge ngắn, màu phụ, native status integration. Codex adapter cần read-only MCP statusline transport đúng native interface; Claude command footer. Triển khai đang bàn giao, chưa có claim hoàn tất.
 
-DX1 implementation ready: src/statusline.ts dùng session-bound read-only render, native Claude JSON và Codex stdio MCP; bounded 128KB decision tail/recent runs; workflow tách native activity. src/cli.ts thêm statusline/setup/uninstall entry; src/setup.ts thêm explicit footer opt-in, backup mode600 và rollback exact-owned, giữ footer cũ và CLAUDE_CONFIG_DIR. Codex manifest trỏ scoped MCP config; README có activation/composition/rollback. Không sửa hooks/run schema hoặc thêm dependency. Source và actual RED/GREEN/build evidence ở `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-inline-implementation-8krt8by6/handoff.json`; baseline source copies ở sibling `jodex-inline-before-sw2gglk_`. Parent đã inspect source sau handoff, tester tiếp nhận.
+DX1 implementation ready: src/statusline.ts dùng session-bound read-only render, native Claude JSON và Codex stdio MCP; bounded 128KB decision tail/recent runs; workflow tách native activity. src/cli.ts thêm statusline/setup/uninstall entry; src/setup.ts thêm explicit footer opt-in, backup mode600 và rollback exact-owned, giữ footer cũ và CLAUDE_CONFIG_DIR. Codex manifest trỏ scoped MCP config; README có activation/composition/rollback. Không sửa hooks/run schema hoặc thêm dependency. Source và actual RED/GREEN/build evidence ở `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jevmind-inline-implementation-8krt8by6/handoff.json`; baseline source copies ở sibling `jevmind-inline-before-sw2gglk_`. Parent đã inspect source sau handoff, tester tiếp nhận.
 
 DX1 final handoff: implementer → independent tester → read-only reviewer hoàn tất tuần tự; REVIEW_PASS scoped, không correction cycle. Renderer/setup/CLI/manifest/docs hashes khớp test và review. Source ở working tree, chưa commit. Explicit activation/rollback xem README Inline status. Native visual acceptance còn mở; không có global config changes hoặc provider calls.
 
-DX1 F1: scoped MCP descriptor now invokes installed jodex command; new declared-transport regression starts it from unrelated cwd. No runtime/setup/CLI changes; README preserves concurrent Claude absolute-path fix. Same implementer owns this correction and has released writes. Raw RED/GREEN refs: `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jodex-inline-f1-implementation-n4cyu2m_/handoff.json`. Native tester/reviewer gates reopened.
+DX1 F1: scoped MCP descriptor now invokes installed jevmind command; new declared-transport regression starts it from unrelated cwd. No runtime/setup/CLI changes; README preserves concurrent Claude absolute-path fix. Same implementer owns this correction and has released writes. Raw RED/GREEN refs: `/var/folders/sm/t_3g1b1n3l73b0fjjfylchw00000gn/T/jevmind-inline-f1-implementation-n4cyu2m_/handoff.json`. Native tester/reviewer gates reopened.
 
-F1 handoff closed: same implementer → independent tester → same reviewer tuần tự, REVIEW_PASS. Native regression bao phủ lớp marketplace/plugin→MCP handshake đã bị bỏ sót trước đây. Parent đã áp dụng đúng Jodex plugin cache trên máy thực và discovery thành công; không chỉnh plugin/provider khác. Native visual selection còn user gate.
+F1 handoff closed: same implementer → independent tester → same reviewer tuần tự, REVIEW_PASS. Native regression bao phủ lớp marketplace/plugin→MCP handshake đã bị bỏ sót trước đây. Parent đã áp dụng đúng Jevmind plugin cache trên máy thực và discovery thành công; không chỉnh plugin/provider khác. Native visual selection còn user gate.

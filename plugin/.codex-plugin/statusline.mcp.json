@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "jodex-statusline": {
+    "jevmind-statusline": {
       "type": "stdio",
-      "command": "jodex",
+      "command": "jevmind",
       "args": ["statusline", "--mcp"]
     }
   }

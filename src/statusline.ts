@@ -4,12 +4,12 @@ import readline from 'node:readline';
 import { loadConfig } from './config.ts';
 import type { Decision } from './decisions.ts';
 import { redact } from './jev.ts';
-import { gitRoot, isInitialized, jodexDir } from './project.ts';
+import { gitRoot, isInitialized, jevmindDir } from './project.ts';
 import { AWAIT_TTL_MS, listRuns, type Run } from './run.ts';
 
-const URI = 'ui://jodex/footer';
+const URI = 'ui://jevmind/footer';
 const TOOL = {
-  name: 'jodex_statusline', title: 'Jodex', description: 'Display this thread’s local Jodex workflow status. Read-only; no agent or model calls.',
+  name: 'jevmind_statusline', title: 'Jevmind', description: 'Display this thread’s local Jevmind workflow status. Read-only; no agent or model calls.',
   inputSchema: { type: 'object', properties: {} },
   annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   _meta: { 'openai/ui': { entrypoints: [{ type: 'statusline', resourceUri: URI }] } },
@@ -27,7 +27,7 @@ const roles = new Set(['planner', 'tester', 'reviewer']);
 function lastDecision(root: string, session: string): Decision | undefined {
   let fd: number | undefined;
   try {
-    fd = fs.openSync(path.join(jodexDir(root), 'decisions.jsonl'), 'r');
+    fd = fs.openSync(path.join(jevmindDir(root), 'decisions.jsonl'), 'r');
     const size = fs.fstatSync(fd).size;
     const length = Math.min(size, 128 * 1024);
     const bytes = Buffer.alloc(length);
@@ -91,19 +91,19 @@ export function renderStatusline(input: unknown, host: 'claude-code' | 'codex', 
     const root = gitRoot(cwd);
     if (!root || !isInitialized(root)) return '';
     const session = str(host === 'codex' ? thread.id : state.session_id);
-    if (!session) return 'JODEX · session unknown';
+    if (!session) return 'JEVMIND · session unknown';
     const run = listRuns(root, 14).findLast((r) => r.sessionId === session);
     const nativeModel = object(host === 'codex' ? thread.model : state.model);
     const model = clean(nativeModel.display_name || nativeModel.id || run?.model);
     const implementor = hostName(run?.host ?? host);
-    const parts = ['JODEX', `Decision: ${decisionText(root, session)}`, `Implementor: ${implementor}${model ? ` (${model})` : ''}`];
+    const parts = ['JEVMIND', `Decision: ${decisionText(root, session)}`, `Implementor: ${implementor}${model ? ` (${model})` : ''}`];
     parts.push(...workflow(run, now));
     if (host === 'codex') {
       const activity = object(thread.agent).state;
       parts.push(`Activity: ${['starting', 'ready', 'working', 'waiting', 'thinking'].includes(activity) ? activity : 'unknown'}`);
     }
     return parts.join(' · ');
-  } catch { return 'JODEX · status unavailable'; }
+  } catch { return 'JEVMIND · status unavailable'; }
 }
 
 class RpcError extends Error {
@@ -113,13 +113,13 @@ class RpcError extends Error {
 
 function respond(method: string, params: Record<string, any>): unknown {
   switch (method) {
-    case 'initialize': return { protocolVersion: '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'jodex-statusline', version: '0.1.0' } };
+    case 'initialize': return { protocolVersion: '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'jevmind-statusline', version: '0.1.0' } };
     case 'ping': return {};
     case 'tools/list': return { tools: [TOOL] };
     case 'tools/call':
       if (params.name !== TOOL.name) throw new RpcError(-32602, 'Unknown tool');
       return { content: [{ type: 'text', text: `Read-only footer: ${URI}` }] };
-    case 'resources/list': return { resources: [{ name: 'Jodex footer', uri: URI, mimeType: 'application/json' }] };
+    case 'resources/list': return { resources: [{ name: 'Jevmind footer', uri: URI, mimeType: 'application/json' }] };
     case 'resources/templates/list': return { resourceTemplates: [] };
     case 'resources/read': {
       if (params.uri !== URI) throw new RpcError(-32602, 'Unknown resource URI');
@@ -127,7 +127,7 @@ function respond(method: string, params: Record<string, any>): unknown {
       const tree = text ? {
         type: 'row', props: { gap: 2, wrap: 'wrap' },
         children: text.split(' · ').map((label) => ({
-          type: 'text', props: { color: label === 'JODEX' ? 'accent' : label.startsWith('Decision:') ? 'status-mode' : label.startsWith('Implementor:') ? 'status-model' : 'status-state' }, children: [label],
+          type: 'text', props: { color: label === 'JEVMIND' ? 'accent' : label.startsWith('Decision:') ? 'status-mode' : label.startsWith('Implementor:') ? 'status-model' : 'status-state' }, children: [label],
         })),
       } : null;
       return { contents: [{ uri: URI, mimeType: 'application/json', text: JSON.stringify(tree) }] };

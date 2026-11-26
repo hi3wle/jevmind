@@ -93,7 +93,7 @@ test('routeTable: a narrow width drops the Why column and lists the reasons belo
     assert.ok(lines.every((l) => l.length <= 74), `${host}: ${Math.max(...lines.map((l) => l.length))} columns`);
     assert.doesNotMatch(lines[0], /Why/, host);
     assert.match(lines[0], /^Step\s+Normal task\s+Critical task$/, host);
-    for (const reason of ['Planner: Plans need the strongest model; runs rarely', 'Implementor: Suggestion only: this is your own session', 'Tester: Scoped tests, verified by jodex check', 'Reviewer: Reads and verifies; no edits']) {
+    for (const reason of ['Planner: Plans need the strongest model; runs rarely', 'Implementor: Suggestion only: this is your own session', 'Tester: Scoped tests, verified by jevmind check', 'Reviewer: Reads and verifies; no edits']) {
       assert.ok(lines.includes(reason), `${host}: missing "${reason}"`);
     }
   }
@@ -122,17 +122,17 @@ test('pickLine names the step and both tiers', () => {
   assert.equal(pickLine('planner', { normal: { model: 'gpt-6.2-astra', effort: 'high' }, critical: { model: null, effort: null } }), '→ Planner will run: gpt-6.2-astra · high (normal), host default · default (critical)');
 });
 
-// `jodex models` with no TTY: prints the tables, writes nothing. HOME and JODEX_HOME are temp dirs.
+// `jevmind models` with no TTY: prints the tables, writes nothing. HOME and JEVMIND_HOME are temp dirs.
 function modelsCli(t: TestContext, globalText?: string) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jodex-models-cli-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jevmind-models-cli-'));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   if (globalText !== undefined) fs.writeFileSync(path.join(home, 'config.toml'), globalText);
   const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
-  const result = spawnSync(process.execPath, [cli, 'models'], { cwd: home, encoding: 'utf8', env: { ...process.env, HOME: home, JODEX_HOME: home, CODEX_SESSION_ID: '' } });
+  const result = spawnSync(process.execPath, [cli, 'models'], { cwd: home, encoding: 'utf8', env: { ...process.env, HOME: home, JEVMIND_HOME: home, CODEX_SESSION_ID: '' } });
   return { result, file: path.join(home, 'config.toml'), home };
 }
 
-test('jodex models without a TTY prints both tables and the config path, exits 0 and writes no file', (t) => {
+test('jevmind models without a TTY prints both tables and the config path, exits 0 and writes no file', (t) => {
   const { result, file } = modelsCli(t);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Claude Code model routing:/);
@@ -143,7 +143,7 @@ test('jodex models without a TTY prints both tables and the config path, exits 0
   assert.equal(fs.existsSync(file), false, 'nothing is written without a TTY');
 });
 
-test('jodex models without a TTY shows only the agents chosen globally', (t) => {
+test('jevmind models without a TTY shows only the agents chosen globally', (t) => {
   const { result } = modelsCli(t, 'agents = ["codex"]\n');
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stdout, /Claude Code model routing/);

@@ -6,7 +6,7 @@ const STEP: Record<RouteRole, string> = { planner: 'Planner', implementor: 'Impl
 const WHY: Record<RouteRole, string> = {
   planner: 'Plans need the strongest model; runs rarely',
   implementor: 'Suggestion only: this is your own session',
-  tester: 'Scoped tests, verified by jodex check',
+  tester: 'Scoped tests, verified by jevmind check',
   reviewer: 'Reads and verifies; no edits',
 };
 const HINT: Record<string, string> = {
@@ -41,7 +41,7 @@ const noteWidth = () => (process.stdout.columns || 80) - 6;
 
 export const pickLine = (role: RouteRole, route: Route) => `→ ${STEP[role]} will run: ${cell(route.normal)} (normal), ${cell(route.critical)} (critical)`;
 
-// `jodex models` (also the end of `jodex setup`): limits are saved globally; Cancel saves nothing.
+// `jevmind models` (also the end of `jevmind setup`): limits are saved globally; Cancel saves nothing.
 export async function modelsCommand(agents: Agent[], log: (s: string) => void, interactive: boolean, file: string) {
   for (const host of agents) {
     const saved = globalAllow()[host] ?? {};
@@ -51,7 +51,7 @@ export async function modelsCommand(agents: Agent[], log: (s: string) => void, i
       log(`Limit a step in ${file}, e.g.\n[models.${host === 'codex' ? 'codex' : 'claude'}.allow.tester]\nmodels = ["${MODEL_ORDER[host][0]}", "${MODEL_ORDER[host][1]}"]\nefforts = ["medium"]`);
       continue;
     }
-    prompt.note(`${routeTable(host, effective(saved), DEFAULT_ROUTES, noteWidth()).join('\n')}${Object.keys(saved).length ? '\n* = changed by your limits' : ''}\n\nHigh effort is used only by the planner. Change this anytime: jodex models`, `Model routing (${AGENT_NAME[host]})`);
+    prompt.note(`${routeTable(host, effective(saved), DEFAULT_ROUTES, noteWidth()).join('\n')}${Object.keys(saved).length ? '\n* = changed by your limits' : ''}\n\nHigh effort is used only by the planner. Change this anytime: jevmind models`, `Model routing (${AGENT_NAME[host]})`);
     const how = await prompt.select({
       message: 'How do you want to route models?',
       options: [
@@ -76,14 +76,14 @@ export async function modelsCommand(agents: Agent[], log: (s: string) => void, i
         const recEfforts = new Set([rec.normal.effort, rec.critical.effort]);
         const known = [...MODEL_ORDER[host], ...(draft[role]?.models ?? []).filter((m) => !MODEL_ORDER[host].includes(m))];
         const models = await prompt.multiselect({
-          message: `${STEP[role]} · models Jodex may use`,
+          message: `${STEP[role]} · models Jevmind may use`,
           options: known.map((m) => ({ value: m, label: name(m), hint: [HINT[m], recModels.has(m) ? 'recommended' : ''].filter(Boolean).join(' · ') || undefined })),
           initialValues: draft[role]?.models ?? MODEL_ORDER[host],
           required: true,
         });
         if (prompt.isCancel(models)) return log('Nothing changed.');
         const efforts = await prompt.multiselect({
-          message: `${STEP[role]} · effort levels Jodex may use`,
+          message: `${STEP[role]} · effort levels Jevmind may use`,
           options: EFFORT_ORDER.map((e) => ({ value: e, label: e, hint: recEfforts.has(e) ? 'recommended' : undefined })),
           initialValues: draft[role]?.efforts ?? EFFORT_ORDER,
           required: true,

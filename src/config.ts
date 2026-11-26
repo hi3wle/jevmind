@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse, stringify } from 'smol-toml';
-import { jodexHome } from './board.ts';
+import { jevmindHome } from './board.ts';
 import { configPath } from './project.ts';
 
 // The agents the developer works with: chosen at setup (global), optionally overridden per project.
 export type Agent = 'claude-code' | 'codex';
 export const AGENTS: Agent[] = ['claude-code', 'codex'];
-export const globalConfigFile = () => path.join(jodexHome(), 'config.toml');
+export const globalConfigFile = () => path.join(jevmindHome(), 'config.toml');
 function agentList(value: unknown, where: string): Agent[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || !value.length || value.some((a) => !AGENTS.includes(a))) throw new Error(`agents in ${where} must be a non-empty list of "claude-code" and/or "codex"`);
@@ -143,10 +143,10 @@ export function recommendedRoutes(raw: any): Routes {
   return routes;
 }
 
-// Allow sets: the project's per step, else the global one (`jodex models`), else no limit.
+// Allow sets: the project's per step, else the global one (`jevmind models`), else no limit.
 function effectiveRoutes(raw: any): Routes {
   const allow = globalAllow();
-  for (const [host, roles] of Object.entries(allowOf(raw, '.jodex/config.toml')) as [Agent, AllowMap[Agent]][]) allow[host] = { ...allow[host], ...roles };
+  for (const [host, roles] of Object.entries(allowOf(raw, '.jevmind/config.toml')) as [Agent, AllowMap[Agent]][]) allow[host] = { ...allow[host], ...roles };
   return applyAllow(recommendedRoutes(raw), allow);
 }
 
@@ -159,21 +159,21 @@ function modelsConfig(raw: any): Config['models'] {
 export function loadConfig(root: string): Config {
   const raw = parse(fs.readFileSync(configPath(root), 'utf8')) as Record<string, any>;
   const risk = raw.risk ?? {};
-  if (typeof risk !== 'object' || Array.isArray(risk) || risk instanceof Date) throw new Error('[risk] must be a table in .jodex/config.toml');
+  if (typeof risk !== 'object' || Array.isArray(risk) || risk instanceof Date) throw new Error('[risk] must be a table in .jevmind/config.toml');
   for (const key of ['critical', 'elevated', 'human_review_required']) {
-    if (risk[key] !== undefined && (!Array.isArray(risk[key]) || risk[key].some((value: unknown) => typeof value !== 'string'))) throw new Error(`[risk] ${key} must be an array of strings in .jodex/config.toml`);
+    if (risk[key] !== undefined && (!Array.isArray(risk[key]) || risk[key].some((value: unknown) => typeof value !== 'string'))) throw new Error(`[risk] ${key} must be an array of strings in .jevmind/config.toml`);
   }
   if (risk.human_review_required?.some((value: string) => !['low', 'elevated', 'critical'].includes(value))) throw new Error('[risk] human_review_required contains an unknown risk level');
   const checks: Record<string, string> = {};
-  if (raw.checks !== undefined && (!raw.checks || typeof raw.checks !== 'object' || Array.isArray(raw.checks))) throw new Error('[checks] must be a table in .jodex/config.toml');
+  if (raw.checks !== undefined && (!raw.checks || typeof raw.checks !== 'object' || Array.isArray(raw.checks))) throw new Error('[checks] must be a table in .jevmind/config.toml');
   for (const [name, cmd] of Object.entries(raw.checks ?? {})) {
-    if (typeof cmd !== 'string' || !cmd.trim()) throw new Error(`[checks] ${name} must be a non-empty command in .jodex/config.toml`);
+    if (typeof cmd !== 'string' || !cmd.trim()) throw new Error(`[checks] ${name} must be a non-empty command in .jevmind/config.toml`);
     checks[name] = cmd;
   }
   const jev = raw.jev ?? {};
   const review = raw.review ?? {};
   // No choice stored anywhere: both agents, as before onboarding existed.
-  const agents = agentList(raw.agents, '.jodex/config.toml') ?? globalAgents() ?? AGENTS;
+  const agents = agentList(raw.agents, '.jevmind/config.toml') ?? globalAgents() ?? AGENTS;
   return {
     agents,
     // The other provider reviews (Claude's work by Codex, Codex's by Claude), only when both are in use.
@@ -197,7 +197,7 @@ export function loadConfig(root: string): Config {
 
 export function renderConfig(checks: Record<string, string>, jev = false, agents?: Agent[]): string {
   const lines = Object.entries(checks).map(([k, v]) => `${k} = ${JSON.stringify(v)}`);
-  return `# Jodex project configuration. See coding-harness-v4.md §10.1.
+  return `# Jevmind project configuration. See coding-harness-v4.md §10.1.
 ${agents ? `\n# Agents used in this project (overrides the machine-wide choice).\nagents = ${JSON.stringify(agents)}\n` : ''}
 [risk]
 # Paths matching these globs raise the task's risk floor.

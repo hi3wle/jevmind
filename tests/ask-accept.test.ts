@@ -29,17 +29,17 @@ async function pending(host?: 'codex') {
   return { root, run, question: acceptQuestion(run, sourceIdentity(root)) };
 }
 const answer = (root: string, question: string, pick: string, extra: object = {}) =>
-  ev(root, 'PostToolUse', { tool_name: 'AskUserQuestion', tool_response: { questions: [{ question, header: 'Jodex', options: [], multiSelect: false }], answers: { [question]: pick }, annotations: {} }, ...extra });
+  ev(root, 'PostToolUse', { tool_name: 'AskUserQuestion', tool_response: { questions: [{ question, header: 'Jevmind', options: [], multiSelect: false }], answers: { [question]: pick }, annotations: {} }, ...extra });
 const reload = (root: string) => listRuns(root)[0];
 
 test('next step: Claude Code asks with AskUserQuestion, Codex keeps the CLI accept text', async () => {
   const c = await pending();
   const next = evaluate(reload(c.root), loadConfig(c.root), sourceIdentity(c.root)).next!;
   assert.ok(next.includes('AskUserQuestion') && next.includes(c.question), next);
-  assert.match(c.question, new RegExp(`Jodex run ${c.run.runId} @${sourceIdentity(c.root).slice(0, 8)}`));
+  assert.match(c.question, new RegExp(`Jevmind run ${c.run.runId} @${sourceIdentity(c.root).slice(0, 8)}`));
   const x = await pending('codex');
   const old = evaluate(reload(x.root), loadConfig(x.root), sourceIdentity(x.root)).next!;
-  assert.equal(old, 'report the status; the developer reviews and runs `jodex accept`');
+  assert.equal(old, 'report the status; the developer reviews and runs `jevmind accept`');
 });
 
 test('dialog Accept / Reject record the decision; other picks record nothing', async () => {
@@ -67,7 +67,7 @@ test('only the exact labels count as a decision', async () => {
 test('Stop after a dialog Accept opens no new run for the same files', async () => {
   const { root, question } = await pending();
   await handleHook(answer(root, question, 'Accept'));
-  await handleHook(ev(root, 'Stop', { last_assistant_message: 'Done.\nJodex status: verified' }));
+  await handleHook(ev(root, 'Stop', { last_assistant_message: 'Done.\nJevmind status: verified' }));
   const runs = listRuns(root);
   assert.equal(runs.length, 1);
   assert.equal(runs.filter((r) => r.open).length, 0);
@@ -90,7 +90,7 @@ test('dialog answer is ignored for a stale source, a decided run and a subagent'
   assert.equal(reload(g.root).acceptance, undefined, 'a subagent event is ignored');
 });
 
-test('PreToolUse denies a pre-answered Jodex approval question only', async () => {
+test('PreToolUse denies a pre-answered Jevmind approval question only', async () => {
   const { root, question } = await pending();
   const ask = (q: string, answers?: object) => ev(root, 'PreToolUse', { tool_name: 'AskUserQuestion', tool_input: { questions: [{ question: q }], ...(answers ? { answers } : {}) } });
   assert.ok(denied(await handleHook(ask(question, { [question]: 'Accept' }))));
@@ -101,10 +101,10 @@ test('PreToolUse denies a pre-answered Jodex approval question only', async () =
 test('task notification restores a missing session file without Jev or prompt memory', async () => {
   const root = tempRepo();
   writeConfig(root, { test: 'true' });
-  const file = path.join(root, '.jodex/sessions/S1.json');
+  const file = path.join(root, '.jevmind/sessions/S1.json');
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'add greeting' }));
   const before = fs.readFileSync(file, 'utf8');
-  const decisions = () => fs.readdirSync(path.join(root, '.jodex'), { recursive: true }).filter((f) => /decision/i.test(String(f))).length;
+  const decisions = () => fs.readdirSync(path.join(root, '.jevmind'), { recursive: true }).filter((f) => /decision/i.test(String(f))).length;
   const n = decisions();
   const note = ev(root, 'UserPromptSubmit', { prompt: '<task-notification>\n<task-id>x</task-id>' });
   assert.deepEqual(await handleHook(note), {});

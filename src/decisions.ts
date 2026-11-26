@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { RiskFloor } from './config.ts';
 import type { IntakeAnswers } from './jev.ts';
-import { jodexDir } from './project.ts';
+import { jevmindDir } from './project.ts';
 
-// Starting thresholds (spec §6.3); `jodex calibrate` will propose project-specific ones.
+// Starting thresholds (spec §6.3); `jevmind calibrate` will propose project-specific ones.
 export const D1_THRESHOLDS = { clarify: 0.6, missingRule: 0.7, raiseRisk: 0.5, recommendMode: 0.5 };
 export const D4_THRESHOLD = 0.5; // P(blocker) needed to confirm a reviewer's blocking finding
 export const D2_DENY = 0.8; // P(dangerous) at which a shell command is denied
@@ -19,7 +19,7 @@ export type D1Action = {
 // Pure policy: Jev answers + thresholds -> actions. Only ever tightens (asymmetry invariant).
 export function decideIntake(a: IntakeAnswers, t = D1_THRESHOLDS): D1Action {
   const clarify = (a.mode.value === 'clarify' && a.mode.probabilities.clarify >= t.clarify) || a.missingRule >= t.missingRule;
-  // Same quantity that `jodex calibrate` tunes: P(elevated) + P(critical).
+  // Same quantity that `jevmind calibrate` tunes: P(elevated) + P(critical).
   const pE = a.risk.probabilities.elevated ?? 0;
   const pC = a.risk.probabilities.critical ?? 0;
   const raised = pE + pC >= t.raiseRisk ? (pC >= pE ? 'critical' : 'elevated') : null;
@@ -49,12 +49,12 @@ export type Decision = {
   request: string; // redacted, truncated
 };
 
-const logFile = (root: string) => path.join(jodexDir(root), 'decisions.jsonl');
+const logFile = (root: string) => path.join(jevmindDir(root), 'decisions.jsonl');
 
 export const newDecisionId = () => crypto.randomBytes(5).toString('hex');
 
 export function appendDecision(root: string, d: Decision) {
-  fs.mkdirSync(jodexDir(root), { recursive: true });
+  fs.mkdirSync(jevmindDir(root), { recursive: true });
   fs.appendFileSync(logFile(root), JSON.stringify(d) + '\n');
 }
 

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
-import { jodexHome, refreshBoard, registerProject, serveBoard, writeBoard } from './board.ts';
+import { jevmindHome, refreshBoard, registerProject, serveBoard, writeBoard } from './board.ts';
 import { apiKey, keyFile, saveKey } from './jev.ts';
 import { calibrate } from './calibrate.ts';
 import { crossHost, inCodexSandbox, launchReviewer, planReviewFile, runPlanReview, runReviewer, waitPlanReview, waitReview } from './crossreview.ts';
@@ -12,7 +12,7 @@ import * as prompt from '@clack/prompts';
 import { type Agent, AGENTS, type Config, globalAgents, globalConfigFile, loadConfig, saveGlobalAgents } from './config.ts';
 import { modelsCommand } from './models.ts';
 import { type HookEvent, handleHook } from './hooks.ts';
-import { planInit, uninstallProject } from './init.ts';
+import { planInit, planMigration, uninstallProject } from './init.ts';
 import { gitRoot, isInitialized, sourceIdentity } from './project.ts';
 import { createRun, evaluate, expireAwaiting, findOpenRun, formatStatus, latestPlan, listRuns, recordDecision, type Run, saveRun, updateRun } from './run.ts';
 import { doctor, hasCli, setup, setupStatusline, uninstallGlobal } from './setup.ts';
@@ -23,37 +23,37 @@ const AGENT_CHOICES = [
   { value: 'codex' as Agent, label: 'Codex' },
 ];
 
-const HELP = `jodex — adaptive coding harness
+const HELP = `jevmind — adaptive coding harness
 
-  jodex setup [--agent claude,codex]
-                              choose your agents and install Jodex into them (once per machine)
-  jodex models                choose which models and efforts each step may use (re-run anytime)
-  jodex setup --statusline    enable the Claude footer if no statusLine is already configured
-  jodex statusline [--mcp]    native footer: Claude JSON stdin or read-only Codex MCP stdio
-  jodex init [--yes] [--jev]  enable Jodex in the current git project (--jev: enable Jev decisions)
-  jodex key                   store the TypeSafe API key read from stdin (~/.jodex/typesafe.key, mode 600)
-  jodex check                 run the project's checks and print the run status
-  jodex review start [--same-host] [--evidence <file>]...
+  jevmind setup [--agent claude,codex]
+                              choose your agents and install Jevmind into them (once per machine)
+  jevmind models                choose which models and efforts each step may use (re-run anytime)
+  jevmind setup --statusline    enable the Claude footer if no statusLine is already configured
+  jevmind statusline [--mcp]    native footer: Claude JSON stdin or read-only Codex MCP stdio
+  jevmind init [--yes] [--jev]  enable Jevmind in the current git project (--jev: enable Jev decisions)
+  jevmind key                   store the TypeSafe API key read from stdin (~/.jevmind/typesafe.key, mode 600)
+  jevmind check                 run the project's checks and print the run status
+  jevmind review start [--same-host] [--evidence <file>]...
                               open an independent review round (the other provider by default);
                               --evidence attaches a screenshot or log from the project or a temp dir
-  jodex review wait           wait for the review result and print the status
-  jodex review plan           cross review of the plan awaiting your challenge (the other provider, read-only)
-  jodex plan start            ask a planner subagent for a plan (collaborative mode)
-  jodex plan accept|revise|block [reason]
+  jevmind review wait           wait for the review result and print the status
+  jevmind review plan           cross review of the plan awaiting your challenge (the other provider, read-only)
+  jevmind plan start            ask a planner subagent for a plan (collaborative mode)
+  jevmind plan accept|revise|block [reason]
                               record your challenge of the latest plan
-  jodex test start            hand test writing to a tester subagent
-  jodex cancel                stop waiting for a subagent that will not report
-  jodex status                print the current run status
-  jodex resume                print the current run for a new session to re-ground
-  jodex accept|reject [run]   record the developer's decision and close the run
-  jodex discard [run]         close a test or abandoned run; calibration ignores it
-  jodex calibrate [--apply]   reliability of Jev's probabilities against outcomes; --apply moves the risk cut
-  jodex board [--open]        write the local dashboard (~/.jodex/board/board.html)
-  jodex board --live [--port N] [--open]
+  jevmind test start            hand test writing to a tester subagent
+  jevmind cancel                stop waiting for a subagent that will not report
+  jevmind status                print the current run status
+  jevmind resume                print the current run for a new session to re-ground
+  jevmind accept|reject [run]   record the developer's decision and close the run
+  jevmind discard [run]         close a test or abandoned run; calibration ignores it
+  jevmind calibrate [--apply]   reliability of Jev's probabilities against outcomes; --apply moves the risk cut
+  jevmind board [--open]        write the local dashboard (~/.jevmind/board/board.html)
+  jevmind board --live [--port N] [--open]
                               serve it on localhost with the live map of running sessions
-  jodex doctor                show what is installed and supported
-  jodex uninstall [--statusline | --project [--purge]]
-                              remove Jodex from this machine, or from the current project
+  jevmind doctor                show what is installed and supported
+  jevmind uninstall [--statusline | --project [--purge]]
+                              remove Jevmind from this machine, or from the current project
 `;
 
 const log = (s: string) => process.stdout.write(`${s}\n`);
@@ -64,12 +64,12 @@ const fail = (s: string): never => {
 
 function projectRoot(): string {
   const root = gitRoot(process.cwd()) ?? fail('Not inside a git repository.');
-  if (!isInitialized(root)) fail('Jodex is not enabled here; run `jodex init`.');
+  if (!isInitialized(root)) fail('Jevmind is not enabled here; run `jevmind init`.');
   return root;
 }
 
 const warnModels = (cfg: Config, out: (s: string) => void) => {
-  if (cfg.models.mode === 'apply') out('Jodex: [models] mode = apply requests planner, tester and reviewer models by role and risk.');
+  if (cfg.models.mode === 'apply') out('Jevmind: [models] mode = apply requests planner, tester and reviewer models by role and risk.');
 };
 
 // The run of the session mid-turn (its own, else an unclaimed one); never another session's run.
@@ -110,7 +110,7 @@ async function main(argv: string[]) {
         log(JSON.stringify(await handleHook(JSON.parse(raw) as HookEvent)));
       } catch (e) {
         // Fail open: a broken hook must not block the developer's agent. The error is kept for `doctor`.
-        const file = path.join(jodexHome(), 'hook-errors.log');
+        const file = path.join(jevmindHome(), 'hook-errors.log');
         fs.mkdirSync(path.dirname(file), { recursive: true });
         fs.appendFileSync(file, `${new Date().toISOString()} ${(e as Error).stack}\n`);
         log('{}');
@@ -150,11 +150,11 @@ async function main(argv: string[]) {
               if (!prompt.isCancel(key) && key.trim()) {
                 saveKey(key);
                 saved = true;
-                log(`Saved to ${keyFile()} (mode 600). Enable Jev per project with \`jodex init --jev\`.`);
+                log(`Saved to ${keyFile()} (mode 600). Enable Jev per project with \`jevmind init --jev\`.`);
               }
             }
           }
-          if (!saved) log('Jev (optional): store a TypeSafe key with `pbpaste | jodex key`.');
+          if (!saved) log('Jev (optional): store a TypeSafe key with `pbpaste | jevmind key`.');
         }
         if (process.stdin.isTTY) await modelsCommand(agents, log, true, globalConfigFile());
       }
@@ -165,8 +165,15 @@ async function main(argv: string[]) {
     }
     case 'init': {
       const root = gitRoot(process.cwd()) ?? fail('Not inside a git repository; run `git init` first.');
+      // A project still on Jodex is migrated first, as one change; its settings carry over.
+      let legacy: ReturnType<typeof planMigration> = null;
+      try {
+        legacy = planMigration(root);
+      } catch (e) {
+        fail((e as Error).message);
+      }
       let useJev = flag('--jev');
-      if (!useJev && !flag('--yes') && process.stdin.isTTY && apiKey()) {
+      if (!legacy && !useJev && !flag('--yes') && process.stdin.isTTY && apiKey()) {
         const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
         const a = await rl.question('Enable Jev decisions? This sends each prompt (secrets redacted) and project metadata, never source, to TypeSafe. [y/N] ');
         rl.close();
@@ -174,18 +181,18 @@ async function main(argv: string[]) {
       }
       // A new project may use other agents than the machine-wide choice.
       let agents: Agent[] | undefined;
-      if (!flag('--yes') && process.stdin.isTTY && !isInitialized(root)) {
+      if (!legacy && !flag('--yes') && process.stdin.isTTY && !isInitialized(root)) {
         const global = globalAgents() ?? AGENTS;
         const pick = await prompt.multiselect({ message: 'Agents used in this project', options: AGENT_CHOICES, initialValues: global, required: true });
         if (prompt.isCancel(pick)) return log('Nothing changed.');
         if ([...pick].sort().join() !== [...global].sort().join()) agents = pick;
       }
-      const changes = planInit(root, useJev, agents);
+      const changes = legacy ? [legacy] : planInit(root, useJev, agents);
       if (!changes.length) {
         registerProject(root, true);
-        return log('Jodex is already enabled in this project.');
+        return log('Jevmind is already enabled in this project.');
       }
-      log(`Jodex will change ${root}:`);
+      log(`Jevmind will change ${root}:`);
       for (const c of changes) log(`  ${c.file}: ${c.summary}`);
       if (!flag('--yes')) {
         if (!process.stdin.isTTY) fail('Re-run with --yes to apply these changes.');
@@ -221,27 +228,27 @@ async function main(argv: string[]) {
       // Detached workers name their run: they must not depend on which session is mid-turn.
       if (cmd === 'review' && sub === 'run') return runReviewer(root, rest[1], rest[2]);
       if (cmd === 'review' && sub === 'plan-run') return runPlanReview(root, rest[1], Number(rest[2]));
-      const run = currentRun(root) ?? (cmd === 'plan' && sub === 'start' ? createRun(root, process.env.CODEX_SESSION_ID || null, '') : fail('No open Jodex run; edit a file or run `jodex check` first.'));
+      const run = currentRun(root) ?? (cmd === 'plan' && sub === 'start' ? createRun(root, process.env.CODEX_SESSION_ID || null, '') : fail('No open Jevmind run; edit a file or run `jevmind check` first.'));
       let out: { ok: boolean; text: string };
       if (cmd === 'review' && sub === 'plan') {
         if (run.awaiting || latestPlan(run)?.decision !== null) return fail('No plan is awaiting your challenge.');
         if (!crossHost(run, cfg.review.crossProvider)) return log('Cross review is off or the other provider CLI is not installed: no plan review.');
         const file = planReviewFile(root, run, run.plans!.length - 1);
         if (inCodexSandbox() && !fs.existsSync(file) && !fs.existsSync(file.replace(/\.md$/, '.launch')))
-          return log('The plan review was not started: the Jodex hook did not launch it, and `jodex review plan` cannot start it inside the Codex sandbox. Check Codex /hooks trust (`jodex doctor`), then run `jodex review plan` again.');
+          return log('The plan review was not started: the Jevmind hook did not launch it, and `jevmind review plan` cannot start it inside the Codex sandbox. Check Codex /hooks trust (`jevmind doctor`), then run `jevmind review plan` again.');
         const text = await waitPlanReview(root, run, process.argv[1], 100 * 1000); // fits the default 2-minute Bash tool timeout
-        return log(text ?? 'The plan review is still running; run `jodex review plan` again.');
+        return log(text ?? 'The plan review is still running; run `jevmind review plan` again.');
       }
       // `plan start` may create the run: claim the invoking session first (request, host, mode).
       if (cmd === 'plan' && sub === 'start') reconcileSession(root, run, cfg);
       if (cmd === 'review' && sub === 'wait') {
         const last = run.reviews?.at(-1);
         if (inCodexSandbox() && last?.reviewer?.mode === 'cross' && !last.reviewer.launchedAt && !last.at)
-          return log('The reviewer was not started: the Jodex hook did not launch it, and `jodex review wait` cannot start it inside the Codex sandbox. Check Codex /hooks trust (`jodex doctor`), then run `jodex review wait` again.');
+          return log('The reviewer was not started: the Jevmind hook did not launch it, and `jevmind review wait` cannot start it inside the Codex sandbox. Check Codex /hooks trust (`jevmind doctor`), then run `jevmind review wait` again.');
         launchReviewer(root, run, process.argv[1]);
         const done = await waitReview(root, run.runId, process.argv[1], 100 * 1000); // fits the default 2-minute Bash tool timeout
         const review = done?.reviews?.at(-1);
-        if (!done || !review?.at) return log('The review is still running; run `jodex review wait` again.');
+        if (!done || !review?.at) return log('The review is still running; run `jevmind review wait` again.');
         log(`${review.round} by ${review.reviewer?.host ?? 'subagent'}${review.reviewer?.model ? ` (${review.reviewer.model})` : ''}: ${review.status}${review.error ? ` (${review.error})` : ''}`);
         for (const f of review.findings) log(`  [${f.severity}${f.severity === 'blocking' ? (f.confirmed ? ', confirmed' : ', disputed by Jev') : ''}] ${f.location}: ${f.issue}`);
         return log(formatStatus(done, evaluate(done, cfg, sourceIdentity(root))));
@@ -265,7 +272,7 @@ async function main(argv: string[]) {
       const run = currentRun(root);
       if (!run?.awaiting) return log('Nothing to cancel.');
       const role = run.awaiting.role;
-      expireAwaiting(run, 'cancelled by `jodex cancel`');
+      expireAwaiting(run, 'cancelled by `jevmind cancel`');
       saveRun(root, run);
       return log(`Stopped waiting for the ${role}.`);
     }
@@ -274,13 +281,13 @@ async function main(argv: string[]) {
       const root = projectRoot();
       const run = currentRun(root);
       warnModels(loadConfig(root), log);
-      if (!run) return log('No open Jodex run in this project.');
+      if (!run) return log('No open Jevmind run in this project.');
       if (cmd === 'resume') {
         log(`Original request: ${run.request || '(unknown)'}`);
         log(`Files touched: ${run.touched.join(', ') || '(none recorded)'}`);
       }
       log(formatStatus(run, evaluate(run, loadConfig(root), sourceIdentity(root))));
-      if (cmd === 'resume') log('Re-read the request, AGENTS.md and the changed files before writing; run `jodex check` before finishing.');
+      if (cmd === 'resume') log('Re-read the request, AGENTS.md and the changed files before writing; run `jevmind check` before finishing.');
       return;
     }
     case 'accept':
@@ -289,7 +296,7 @@ async function main(argv: string[]) {
       const root = projectRoot();
       // Default: the latest run still without a decision, open or closed (critical runs close at review_required).
       const run = (rest[0] ? listRuns(root).find((r) => r.runId === rest[0]) : listRuns(root).findLast((r) => !r.acceptance)) ??
-        fail(listRuns(root).length ? 'No run waiting for a decision.' : 'No Jodex runs in this checkout yet. Runs stay in the checkout where the agent worked (each git worktree has its own).');
+        fail(listRuns(root).length ? 'No run waiting for a decision.' : 'No Jevmind runs in this checkout yet. Runs stay in the checkout where the agent worked (each git worktree has its own).');
       const result = recordDecision(run, loadConfig(root), sourceIdentity(root), cmd === 'accept' ? 'accepted' : cmd === 'reject' ? 'rejected' : 'discarded');
       saveRun(root, run);
       refreshBoard();
@@ -298,7 +305,7 @@ async function main(argv: string[]) {
     case 'key': {
       let raw = '';
       for await (const chunk of process.stdin) raw += chunk;
-      if (!raw.trim()) fail('Pipe the key on stdin, e.g. `pbpaste | jodex key`.');
+      if (!raw.trim()) fail('Pipe the key on stdin, e.g. `pbpaste | jevmind key`.');
       saveKey(raw);
       return log(`Saved to ${keyFile()} (mode 600).`);
     }

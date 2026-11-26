@@ -14,7 +14,7 @@ export function runChecks(root: string, cfg: Config, run: Run, log: (s: string) 
     const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
     const after = sourceIdentity(root);
     log(output.slice(-4000));
-    if (before !== after) log(`warning: "${name}" changed files in the working tree; commit, revert or .gitignore them and run \`jodex check\` again.`);
+    if (before !== after) log(`warning: "${name}" changed files in the working tree; commit, revert or .gitignore them and run \`jevmind check\` again.`);
     run.checks[name] = {
       command,
       exitCode: r.status,

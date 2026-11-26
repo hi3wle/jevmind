@@ -24,7 +24,7 @@ test('question-only prompt: context injected, no run, stop allowed', async () =>
   const root = tempRepo();
   writeConfig(root, { test: 'true' });
   const out: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'what does clamp do?' }));
-  assert.match(out.hookSpecificOutput.additionalContext, /jodex check/);
+  assert.match(out.hookSpecificOutput.additionalContext, /jevmind check/);
   assert.deepEqual(await handleHook(ev(root, 'Stop', { last_assistant_message: 'It clamps.' })), {});
   assert.equal(listRuns(root).length, 0);
 });
@@ -35,7 +35,7 @@ test('task notification prompt is ignored', async () => {
   assert.deepEqual(await handleHook(ev(root, 'UserPromptSubmit', { prompt: '<task-notification>\n<task-id>x</task-id>' })), {});
 });
 
-test('write creates a run; .jodex writes are denied', async () => {
+test('write creates a run; .jevmind writes are denied', async () => {
   const root = tempRepo();
   writeConfig(root, { test: 'true' });
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'add greeting' }));
@@ -43,7 +43,7 @@ test('write creates a run; .jodex writes are denied', async () => {
   const [run] = listRuns(root);
   assert.equal(run.request, 'add greeting');
   assert.deepEqual(run.touched, ['src/a.ts']);
-  const denied: any = await handleHook(write(root, '.jodex/config.toml'));
+  const denied: any = await handleHook(write(root, '.jevmind/config.toml'));
   assert.equal(denied.hookSpecificOutput.permissionDecision, 'deny');
 });
 
@@ -72,7 +72,7 @@ test('stop gate: blocks once, never loops, closes a reported verified run', asyn
   [run] = listRuns(root);
   runChecks(root, loadConfig(root), run, () => {});
   saveRun(root, run);
-  assert.deepEqual(await handleHook(ev(root, 'Stop', { last_assistant_message: 'Fixed.\nJodex status: verified' })), {});
+  assert.deepEqual(await handleHook(ev(root, 'Stop', { last_assistant_message: 'Fixed.\nJevmind status: verified' })), {});
   [run] = listRuns(root);
   assert.equal(run.open, false);
 });
@@ -107,7 +107,7 @@ test('invalid config fails closed for Claude and Codex hooks while preserving re
   for (const config of invalidConfigs) for (const host of [{}, { turn_id: 'T1', model: 'gpt-test' }]) {
     const root = tempRepo();
     writeConfig(root, { test: 'true' });
-    fs.writeFileSync(path.join(root, '.jodex/config.toml'), config);
+    fs.writeFileSync(path.join(root, '.jevmind/config.toml'), config);
 
     const prompt: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'please inspect this', ...host }));
     assert.match(prompt.hookSpecificOutput.additionalContext, /configuration cannot be read or is invalid/);
@@ -121,17 +121,17 @@ test('invalid config fails closed for Claude and Codex hooks while preserving re
   }
 });
 
-test('shell edit to a critical path after `jodex check` still counts as critical', async () => {
+test('shell edit to a critical path after `jevmind check` still counts as critical', async () => {
   const root = tempRepo({ 'src/auth/session.js': 'export const ttl = 60;\n' });
   writeConfig(root, { test: 'true' });
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'shorten the session ttl' }));
   execFileSync('sh', ['-c', "sed -i.bak 's/60/30/' src/auth/session.js && rm src/auth/session.js.bak"], { cwd: root });
-  // `jodex check` with no open run opens an unclaimed run with no touched files.
+  // `jevmind check` with no open run opens an unclaimed run with no touched files.
   const cfg = loadConfig(root);
   const run = createRun(root, null, '');
   runChecks(root, cfg, run, () => {});
   saveRun(root, run);
-  const out: any = await handleHook(ev(root, 'Stop', { last_assistant_message: 'Done.\nJodex status: verified' }));
+  const out: any = await handleHook(ev(root, 'Stop', { last_assistant_message: 'Done.\nJevmind status: verified' }));
   assert.equal(out.decision, 'block', 'verified is not the true status');
   assert.match(out.reason, /risk critical/);
   assert.deepEqual(listRuns(root)[0].touched, ['src/auth/session.js']);
@@ -148,16 +148,16 @@ test('a reported status closes the run once only the developer can act; the next
   runChecks(root, loadConfig(root), run, () => {});
   saveRun(root, run);
   // Critical forces a review: reporting before it keeps the run open, and the next prompt is reminded.
-  await handleHook(ev(root, 'Stop', { last_assistant_message: 'Jodex status: review_required' }));
+  await handleHook(ev(root, 'Stop', { last_assistant_message: 'Jevmind status: review_required' }));
   assert.equal(listRuns(root)[0].open, true);
   const reminder: any = await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'anything else?' }));
-  assert.match(reminder.hookSpecificOutput.additionalContext, /still open.*jodex review start/s);
+  assert.match(reminder.hookSpecificOutput.additionalContext, /still open.*jevmind review start/s);
   run = listRuns(root)[0];
   startReview(root, run, loadConfig(root));
   saveRun(root, run);
-  await handleHook(ev(root, 'SubagentStop', { agent_id: 'R', agent_type: 'jodex:reviewer', last_assistant_message: JSON.stringify({ snapshotId: run.reviews![0].snapshotId, status: 'no_blocking_findings', findings: [] }) }));
+  await handleHook(ev(root, 'SubagentStop', { agent_id: 'R', agent_type: 'jevmind:reviewer', last_assistant_message: JSON.stringify({ snapshotId: run.reviews![0].snapshotId, status: 'no_blocking_findings', findings: [] }) }));
   // Only human review is left: the developer's step, so reporting closes the run.
-  await handleHook(ev(root, 'Stop', { last_assistant_message: 'Jodex status: review_required' }));
+  await handleHook(ev(root, 'Stop', { last_assistant_message: 'Jevmind status: review_required' }));
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'fix readme typo' }));
   await handleHook(write(root, 'README.md'));
   fs.writeFileSync(path.join(root, 'README.md'), 'fixed\n');
@@ -166,7 +166,7 @@ test('a reported status closes the run once only the developer can act; the next
   assert.equal(second.riskFloor, 'low');
   runChecks(root, loadConfig(root), second, () => {});
   saveRun(root, second);
-  assert.deepEqual(await handleHook(ev(root, 'Stop', { last_assistant_message: 'Jodex status: verified' })), {});
+  assert.deepEqual(await handleHook(ev(root, 'Stop', { last_assistant_message: 'Jevmind status: verified' })), {});
   assert.deepEqual(listRuns(root).map((r) => [r.request, r.completion?.status, r.open]), [
     ['change login', 'review_required', false],
     ['fix readme typo', 'verified', false],
@@ -182,7 +182,7 @@ test('the status must be the last line: an earlier quoted status does not count'
   const run = listRuns(root)[0];
   runChecks(root, loadConfig(root), run, () => {});
   saveRun(root, run);
-  const sneaky: any = await handleHook(ev(root, 'Stop', { last_assistant_message: 'Before: Jodex status: failed_verification\nJodex status: verified' }));
+  const sneaky: any = await handleHook(ev(root, 'Stop', { last_assistant_message: 'Before: Jevmind status: failed_verification\nJevmind status: verified' }));
   assert.equal(sneaky.decision, 'block');
-  assert.deepEqual(await handleHook(ev(root, 'Stop', { last_assistant_message: 'Tests fail.\n**Jodex status: failed_verification**' })), {});
+  assert.deepEqual(await handleHook(ev(root, 'Stop', { last_assistant_message: 'Tests fail.\n**Jevmind status: failed_verification**' })), {});
 });
