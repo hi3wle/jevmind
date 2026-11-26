@@ -1,0 +1,123 @@
+<!doctype html>
+<!-- Source of the README images. Regenerate with scripts/readme-images.sh; the URL hash picks the card. -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=block">
+<style>
+  :root { --bg:#0e0d0c; --line:#262422; --text:#efe9df; --muted:#8f8a82; --faint:#5f5b55; --blue:#7fb3ff; --violet:#c79bff; --ok:#7ed69a; --warn:#f2c46d; --bad:#ff8a7a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; }
+  body { font: 15px/1.5 "JetBrains Mono", ui-monospace, Menlo, monospace; color: var(--text); }
+  .card { display: none; width: 880px; background: var(--bg); border-radius: 18px; padding: 44px 46px 40px; }
+  .card:target { display: block; }
+  .kicker { font-size: 13px; letter-spacing: .3em; color: var(--muted); text-transform: uppercase; }
+  h2 { font-size: 34px; line-height: 1.2; font-weight: 800; margin: 12px 0 26px; letter-spacing: -.01em; }
+  .note { color: var(--muted); font-size: 14px; margin-top: 22px; }
+  .row { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: baseline; padding: 13px 0; border-top: 1px solid var(--line); }
+  .row:last-of-type { border-bottom: 1px solid var(--line); }
+  .row .n { color: var(--faint); } .row .r { color: var(--muted); font-size: 13px; text-align: right; }
+  .row.hi .n { color: var(--blue); font-weight: 800; } .row.hi .t { font-weight: 800; }
+  .grad { background: linear-gradient(90deg, var(--blue), var(--violet)); -webkit-background-clip: text; color: transparent; }
+  /* hero */
+  #hero { padding: 56px 56px 48px; }
+  #hero .title { font-size: 84px; font-weight: 800; letter-spacing: -.03em; line-height: 1; margin: 22px 0 14px; }
+  #hero .tag { font-size: 22px; }
+  #hero .pipe { display: flex; align-items: center; gap: 7px; margin: 40px 0 34px; flex-wrap: wrap; }
+  #hero .pipe span.s { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 13.5px; }
+  #hero .pipe span.s b { display: block; font-size: 11px; letter-spacing: .2em; color: var(--muted); font-weight: 400; }
+  #hero .pipe .a { color: var(--faint); }
+  #hero .jev { border-color: #3a4f78 !important; box-shadow: 0 0 24px #7fb3ff33; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--violet); box-shadow: 0 0 12px var(--violet); margin-right: 10px; }
+  /* terminal */
+  .term { background: #070706; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; font-size: 14px; white-space: pre; line-height: 1.6; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); } .m { color: var(--muted); } .b { color: var(--blue); }
+  /* dialog */
+  .dlg { border: 1px solid #3a4f78; border-radius: 12px; padding: 20px 22px; background: #0b0d12; }
+  .dlg .h { display: inline-block; font-size: 12px; letter-spacing: .15em; color: #0b0d12; background: var(--blue); border-radius: 5px; padding: 2px 8px; }
+  .dlg .q { font-size: 17px; margin: 14px 0 16px; }
+  .opt { padding: 9px 12px; border-radius: 8px; color: var(--muted); }
+  .opt.sel { background: #16213a; color: var(--text); }
+  .opt .k { color: var(--faint); margin-right: 12px; }
+  /* routing */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-weight: 400; font-size: 12px; letter-spacing: .15em; text-transform: uppercase; padding: 0 0 10px; }
+  td { padding: 11px 0; border-top: 1px solid var(--line); }
+  td.role { color: var(--text); } td .e { color: var(--faint); } td .hi { color: var(--warn); }
+  .host { font-size: 12px; letter-spacing: .2em; color: var(--blue); margin: 26px 0 8px; }
+</style>
+
+<section class="card" id="hero">
+  <div class="kicker"><span class="dot"></span>Adaptive coding harness</div>
+  <div class="title">Jev<span class="grad">mind</span></div>
+  <div class="tag">Jev decides. Claude Code and Codex do the work.</div>
+  <div class="pipe">
+    <span class="s jev"><b>JEV</b>mode · risk</span><span class="a">→</span>
+    <span class="s"><b>PLAN</b>planner</span><span class="a">→</span>
+    <span class="s"><b>BUILD</b>your agent</span><span class="a">→</span>
+    <span class="s"><b>TEST</b>tester</span><span class="a">→</span>
+    <span class="s"><b>REVIEW</b>other provider</span><span class="a">→</span>
+    <span class="s"><b>STATUS</b><span class="ok">verified</span></span>
+  </div>
+  <div class="note">You prompt as usual. Every task ends with evidence, not a claim.</div>
+</section>
+
+<section class="card" id="flow">
+  <div class="kicker">How a task runs</div>
+  <h2>The right amount of process<br>for each task. No more.</h2>
+  <div class="row"><span class="n">1</span><span class="t">You prompt Claude Code or Codex as usual</span><span class="r">nothing new to learn</span></div>
+  <div class="row"><span class="n">2</span><span class="t">Jev reads the task</span><span class="r">solo · review · collaborative</span></div>
+  <div class="row"><span class="n">3</span><span class="t">A planner drafts, you challenge it</span><span class="r">collaborative only</span></div>
+  <div class="row"><span class="n">4</span><span class="t">Your agent writes the code</span><span class="r">the run tracks every file</span></div>
+  <div class="row"><span class="n">5</span><span class="t">A tester writes and runs the tests</span><span class="r">collaborative only</span></div>
+  <div class="row"><span class="n">6</span><span class="t">The other provider reviews, read-only</span><span class="r">Claude ⇄ Codex</span></div>
+  <div class="row hi"><span class="n">7</span><span class="t">jevmind check: evidence on this exact source</span><span class="r">or the agent cannot finish</span></div>
+  <div class="note">Rules first, then Jev's probabilities, then thresholds. Critical paths always need you.</div>
+</section>
+
+<section class="card" id="gate">
+  <div class="kicker">The stop gate</div>
+  <h2>"Done" without proof<br>goes back once.</h2>
+  <div class="term"><span class="m">agent ›</span> All done, the login fix works.
+
+<span class="b">Jevmind run 20261126-4f2a1c</span> <span class="m">(review, risk critical)</span>
+Status: <span class="bad">failed_verification</span>
+  <span class="ok">satisfied</span>   typecheck: exit 0 on current source
+  <span class="bad">failed</span>      test: exit 1 on current source
+  <span class="warn">pending</span>     review: review mode, critical risk; no review yet
+  <span class="warn">pending</span>     human_review: critical risk requires the developer
+<span class="m">Next:</span> fix the failing test, then run `jevmind check`</div>
+  <div class="note">The agent must end with "Jevmind status: &lt;status&gt;". A second stop always goes through, so it cannot loop.</div>
+</section>
+
+<section class="card" id="dialog">
+  <div class="kicker">Critical runs</div>
+  <h2>You decide with one keypress,<br>not a terminal command.</h2>
+  <div class="dlg">
+    <span class="h">JEVMIND</span>
+    <div class="q">Jevmind run 20261126-4f2a1c @9b3e07d1: accept this change?</div>
+    <div class="opt sel"><span class="k">❯ 1.</span>Accept</div>
+    <div class="opt"><span class="k">&nbsp; 2.</span>Reject</div>
+    <div class="opt"><span class="k">&nbsp; 3.</span>Review the diff first</div>
+  </div>
+  <div class="note">Only your answer counts: a pre-filled answer is denied, and the change it names must still match. In Codex: jevmind accept.</div>
+</section>
+
+<section class="card" id="routing">
+  <div class="kicker">Model routing</div>
+  <h2>Medium effort by default.<br>High only to plan critical work.</h2>
+  <table>
+    <tr><th style="width:24%">Step</th><th style="width:38%">Claude Code</th><th>Codex</th></tr>
+    <tr><td class="role">Planner</td><td>opus <span class="e">medium</span> / <span class="hi">high</span></td><td>astra <span class="e">medium</span> / <span class="hi">high</span></td></tr>
+    <tr><td class="role">Implementor</td><td>sonnet → opus <span class="e">medium</span></td><td>sol <span class="e">medium</span></td></tr>
+    <tr><td class="role">Tester</td><td>haiku → sonnet <span class="e">medium</span></td><td>luna <span class="e">high</span> → sol <span class="e">medium</span></td></tr>
+    <tr><td class="role">Reviewer</td><td>sonnet → opus <span class="e">medium</span></td><td>sol → astra <span class="e">medium</span></td></tr>
+  </table>
+  <div class="note">a → b: normal run → critical run. A critical run gets a stronger model, not more effort. Limit the choices per step with jevmind models.</div>
+</section>
+
+<script>
+  // #sizes: print each card's height so the render script can size the screenshot window.
+  if (location.hash === '#sizes') document.fonts.ready.then(() => {
+    const out = [...document.querySelectorAll('.card')].map((c) => { c.style.display = 'block'; const h = Math.ceil(c.getBoundingClientRect().height); c.style.display = ''; return `${c.id}:${h}`; });
+    document.body.insertAdjacentHTML('beforeend', `<pre id="sizes">${out.join(' ')}</pre>`);
+  });
+</script>
