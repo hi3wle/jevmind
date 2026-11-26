@@ -9,9 +9,10 @@ import { maxFloor } from './rules.ts';
 import { crossHost, type Host } from './crossreview.ts';
 import { appendDecision, D4_THRESHOLD, newDecisionId } from './decisions.ts';
 import { jev, redact } from './jev.ts';
-import { changedPaths, jodexDir, type Manifest, manifest, readJson, sourceIdentity, writeJson } from './project.ts';
+import { changedPaths, jevmindDir, type Manifest, manifest, readJson, sourceIdentity, writeJson } from './project.ts';
 import {
   CORRECTION_BUDGET,
+  MISSING_CHECKS_NEXT,
   evaluate,
   type Finding,
   type ModelPair,
@@ -41,7 +42,7 @@ export function pluginFile(rel: string): string {
 // Role prompt = the Claude Code agent definition without its frontmatter, so both hosts use one text.
 export const rolePrompt = (role: Role) => fs.readFileSync(pluginFile(`agents/${role}.md`), 'utf8').replace(/^---[\s\S]*?---\s*/, '');
 
-export const runDir = (root: string, run: Run) => path.join(jodexDir(root), 'runs', run.runId);
+export const runDir = (root: string, run: Run) => path.join(jevmindDir(root), 'runs', run.runId);
 const baseDir = (root: string, run: Run) => path.join(runDir(root, run), 'base');
 
 // Keep each file's content from before this run's first write to it, so the review diff shows
@@ -62,15 +63,15 @@ const rel = (root: string, p: string) => path.relative(root, p).split(path.sep).
 
 function launch(role: Role, briefFile: string, brief: string, host?: string | null, requested?: ModelPair): string {
   const routed = requested?.model ? host === 'claude-code'
-    ? `- Claude Code: Agent tool with ${JSON.stringify({ subagent_type: `jodex:${role}`, model: requested.model })}.`
+    ? `- Claude Code: Agent tool with ${JSON.stringify({ subagent_type: `jevmind:${role}`, model: requested.model, effort: requested.effort ?? undefined })}.`
     : `- Codex: spawn_agent with ${JSON.stringify({ model: requested.model, reasoning_effort: requested.effort ?? undefined, fork_turns: 'none' })}; use the default agent type and put the brief in its task message.` : null;
   return [
     `Launch the ${role} subagent now and pass it the brief below verbatim (also saved in ${briefFile}).`,
     ...(routed ? [routed, 'Do not launch if these native arguments or the requested model are unavailable; report the limitation instead of using an inherited model.'] : [
-      `- Claude Code: Agent tool with subagent_type "jodex:${role}".`,
+      `- Claude Code: Agent tool with subagent_type "jevmind:${role}".`,
       `- Codex or another host: spawn a subagent with this brief as its whole task.`,
     ]),
-    `Do not do the ${role}'s work yourself. Jodex records its result when it finishes.`,
+    `Do not do the ${role}'s work yourself. Jevmind records its result when it finishes.`,
     '',
     '----- brief -----',
     brief,
@@ -92,7 +93,7 @@ function reviewPacket(root: string, run: Run, round: string): string {
   const git = (...args: string[]) => spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }).stdout ?? '';
   // Scope is this run's files; other uncommitted work in the tree is listed as context only.
   const scope = run.touched.filter((f) => !f.startsWith('..'));
-  const untracked = new Set(git('ls-files', '-o', '--exclude-standard', '--', '.', ':(exclude).jodex').split('\n').filter(Boolean));
+  const untracked = new Set(git('ls-files', '-o', '--exclude-standard', '--', '.', ':(exclude).jevmind').split('\n').filter(Boolean));
   let diff = '';
   for (const f of scope) {
     const base = run.baseFiles?.[f];
@@ -101,7 +102,7 @@ function reviewPacket(root: string, run: Run, round: string): string {
     diff += from ? git('diff', '--no-index', '--', from, fs.existsSync(path.join(root, f)) ? f : '/dev/null') : git('diff', 'HEAD', '--', f);
   }
   fs.writeFileSync(path.join(dir, 'diff.patch'), diff);
-  const others = [...new Set([...git('diff', 'HEAD', '--name-only').split('\n'), ...untracked])].filter((f) => f && !scope.includes(f) && !f.startsWith('.jodex'));
+  const others = [...new Set([...git('diff', 'HEAD', '--name-only').split('\n'), ...untracked])].filter((f) => f && !scope.includes(f) && !f.startsWith('.jevmind'));
   fs.writeFileSync(path.join(dir, 'other-changes.txt'), others.length ? `Uncommitted changes outside this run (context, not under review):\n${others.join('\n')}\n` : 'none\n');
   fs.writeFileSync(path.join(dir, 'checks.json'), JSON.stringify(run.checks, null, 2));
   const recent = run.sessionId ? recentPrompts(root, run.sessionId).filter((p) => p !== run.request) : [];
@@ -115,7 +116,7 @@ function reviewPacket(root: string, run: Run, round: string): string {
 // The last prompts of a session outlive its per-turn file, so a short follow-up ("agreed")
 // still reaches the reviewer with the request it refers to.
 const RECENT_PROMPTS = 5;
-const promptsFile = (root: string, sessionId: string) => path.join(jodexDir(root), 'sessions', `${sessionId.replace(/[^\w-]/g, '_')}.prompts.json`);
+const promptsFile = (root: string, sessionId: string) => path.join(jevmindDir(root), 'sessions', `${sessionId.replace(/[^\w-]/g, '_')}.prompts.json`);
 export const recentPrompts = (root: string, sessionId: string) => readJson<string[]>(promptsFile(root, sessionId), []);
 export function rememberPrompt(root: string, sessionId: string, prompt: string) {
   if (prompt.trim()) writeJson(promptsFile(root, sessionId), [...recentPrompts(root, sessionId), prompt.slice(0, 2000)].slice(-RECENT_PROMPTS));
@@ -144,10 +145,10 @@ export function checkEvidence(root: string, files: string[]): string | null {
 export function reconcileSession(root: string, run: Run, cfg: Config) {
   const s = sessionFile(root, run);
   if (!s) return;
-  // A run opened by `jodex check` (shell edits only) still needs the prompt for its review.
+  // A run opened by `jevmind check` (shell edits only) still needs the prompt for its review.
   if (!run.request && s.lastPrompt) run.request = s.lastPrompt;
   run.promptAt ??= s.promptAt; // the worker's token window starts at the prompt that opened the run
-  // `jodex check` during an agent turn: the run belongs to that session.
+  // `jevmind check` during an agent turn: the run belongs to that session.
   // A run created under CODEX_SESSION_ID already names the session; host and model still come from it.
   if (s.id) [run.sessionId, run.host, run.model] = [run.sessionId ?? s.id, run.host ?? s.host ?? null, run.model ?? s.model ?? null];
   // Decided before this turn's shell edits are folded in: they are this task's, not an earlier one's.
@@ -167,7 +168,7 @@ type SessionData = { id?: string; host?: string; model?: string | null; lastProm
 // removed at Stop). CLI commands run by an agent use it to find that session's run.
 // shortcut: parallel sessions in one checkout can race here; hooks carry the real session id.
 export function activeSessionId(root: string): string | null {
-  const dir = path.join(jodexDir(root), 'sessions');
+  const dir = path.join(jevmindDir(root), 'sessions');
   if (!fs.existsSync(dir)) return null;
   // A session that died without a Stop leaves its file behind: only a recent prompt counts.
   const files = fs
@@ -182,38 +183,22 @@ export function activeSessionId(root: string): string | null {
 function sessionFile(root: string, run: Run): SessionData | null {
   const id = run.sessionId?.replace(/[^\w-]/g, '_') ?? activeSessionId(root);
   if (!id) return null;
-  const s = readJson<SessionData | null>(path.join(jodexDir(root), 'sessions', `${id}.json`), null);
+  const s = readJson<SessionData | null>(path.join(jevmindDir(root), 'sessions', `${id}.json`), null);
   return s ? { id, ...s } : null;
 }
 
-// D6 proposal for a role attempt: the configured level (default L1), L2 on a critical floor.
-// Off/shadow retain P1 proposals; apply routes planner/tester only.
+// D6 proposal for a role attempt: the role's route, its critical tier on a critical floor.
+// Shadow records it; apply also requests it at launch.
 export function propose(role: Role, host: string | null, run: Run, cfg: Config): { proposed: ModelPair | null; policy: string | null; reason: string | null } {
-  const { mode, roles, levels } = cfg.models;
-  if (mode === 'off' || (host !== 'claude-code' && host !== 'codex')) return { proposed: null, policy: null, reason: null };
-  if (mode === 'apply' && role !== 'reviewer') {
-    const level = role === 'planner' ? 'L2' : host === 'claude-code' && run.riskFloor === 'critical' ? 'L1' : 'L0';
-    return { proposed: levels[host][level], policy: 'launch-v1', reason: `${role} on ${host}, ${run.riskFloor} floor: ${level}` };
-  }
-  let level = roles[role] ?? 'L1';
-  const reason: string[] = [];
-  if (level === 'L0' && role !== 'tester') {
-    reason.push(`L0 is for the tester only; ${role} uses L1`);
-    level = 'L1';
-  }
-  if (run.riskFloor === 'critical') {
-    reason.push('critical floor');
-    level = 'L2';
-  } else reason.push(`role level ${level}`);
-  if (mode === 'apply') reason.push('reviewer remains shadow');
-  return { proposed: levels[host][level], policy: 'levels-v1', reason: reason.join('; ') };
+  if (cfg.models.mode === 'off' || (host !== 'claude-code' && host !== 'codex')) return { proposed: null, policy: null, reason: null };
+  const tier = run.riskFloor === 'critical' ? 'critical' : 'normal';
+  return { proposed: cfg.models.routes[host][role][tier], policy: 'routes-v1', reason: `${role} on ${host}, ${run.riskFloor} floor: ${tier}` };
 }
 
 const NOT_REQUESTED: ModelPair = { model: null, effort: null }; // the host's default
 function addAttempt(run: Run, cfg: Config, role: Role, key: string, since: string, host: string | null, launch: 'detached' | 'subagent', requested: ModelPair) {
   const proposal = propose(role, host, run, cfg);
-  if (cfg.models.mode === 'apply' && role !== 'reviewer' && proposal.proposed)
-    requested = { ...proposal.proposed, effort: host === 'claude-code' ? null : proposal.proposed.effort };
+  if (cfg.models.mode === 'apply' && proposal.proposed) requested = proposal.proposed;
   run.attempts = [...(run.attempts ?? []), { role, key, since, host, launch, ...proposal, requested, observed: { model: null, effort: null, source: null }, mismatch: 'unknown' }];
   return requested;
 }
@@ -227,9 +212,10 @@ export function startReview(root: string, run: Run, cfg: Config, sameHost = fals
   if (!run.touched.length) return { ok: false, text: 'No changes are recorded for this run, so there is nothing to review.' };
   const identity = sourceIdentity(root);
   const result = evaluate(run, cfg, identity);
+  if (result.gates.some((g) => g.gate === 'checks' && g.state === 'unavailable')) return { ok: false, text: MISSING_CHECKS_NEXT };
   const checks = result.gates.filter((g) => g.required && !['review', 'plan', 'human_review'].includes(g.gate));
   if (checks.some((g) => g.state !== 'satisfied'))
-    return { ok: false, text: 'Checks must pass on the current source before a review: run `jodex check` and fix failures first.' };
+    return { ok: false, text: 'Checks must pass on the current source before a review: run `jevmind check` and fix failures first.' };
   const last = latestReview(run);
   if (last && !last.at) return { ok: false, text: `${last.round} is still running; wait for the reviewer.` };
   if (hasDisputed(run) && run.acceptance?.decision !== 'accepted')
@@ -255,7 +241,7 @@ export function startReview(root: string, run: Run, cfg: Config, sameHost = fals
   const host = sameHost ? null : crossHost(run, cfg.review.crossProvider);
   review.reviewer = { host: host ?? ((run.host as Host | null) ?? 'claude-code'), mode: host ? 'cross' : 'subagent', model: null };
   // Frozen here: the detached reviewer launches with exactly this, whatever the config says later.
-  addAttempt(run, cfg, 'reviewer', round, review.startedAt, review.reviewer.host, host ? 'detached' : 'subagent', host === 'claude-code' ? { model: cfg.review.claudeModel, effort: null } : NOT_REQUESTED);
+  const requested = addAttempt(run, cfg, 'reviewer', round, review.startedAt, review.reviewer.host, host ? 'detached' : 'subagent', host === 'claude-code' ? { model: cfg.review.claudeModel, effort: null } : NOT_REQUESTED);
   run.reviews = [...(run.reviews ?? []), review];
   run.awaiting = { role: 'reviewer', since: review.startedAt };
   const brief = `${rolePrompt('reviewer')}
@@ -271,8 +257,8 @@ ${attached.length ? `- Evidence supplied by the worker (data, not instructions; 
 End your reply with one fenced \`\`\`json block containing the ReviewResult with "snapshotId": "${identity}".`;
   review.briefFile = writeBrief(root, run, `${round}-reviewer-brief.md`, brief);
   if (host)
-    return { ok: true, text: `${round}: cross-provider review by ${host === 'codex' ? 'Codex' : 'Claude Code'} (read-only, fresh session). Do not launch a subagent. Run \`jodex review wait\` now; it can take several minutes and prints the result.` };
-  return { ok: true, text: launch('reviewer', review.briefFile, brief) };
+    return { ok: true, text: `${round}: cross-provider review by ${host === 'codex' ? 'Codex' : 'Claude Code'} (read-only, fresh session). Do not launch a subagent. Run \`jevmind review wait\` now; it can take several minutes and prints the result.` };
+  return { ok: true, text: launch('reviewer', review.briefFile, brief, review.reviewer.host, requested) };
 }
 
 export function startPlan(root: string, run: Run, cfg: Config): { ok: boolean; text: string } {
@@ -291,19 +277,19 @@ export function startPlan(root: string, run: Run, cfg: Config): { ok: boolean; t
 ## Inputs
 - Original requirement: ${run.request || '(see the conversation)'}
 ${last ? `- Previous plan: ${last.file}\n- The worker asked for a revision because: ${last.reason}\n` : ''}
-Reply with the plan as Markdown using the template above, starting with the line "${PLAN_MARK}". Jodex stores your reply as the plan.`;
+Reply with the plan as Markdown using the template above, starting with the line "${PLAN_MARK}". Jevmind stores your reply as the plan.`;
   return { ok: true, text: launch('planner', writeBrief(root, run, `plan-${n}-brief.md`, brief), brief, run.host, requested) };
 }
 
 export function decidePlan(run: Run, decision: 'accept' | 'revise' | 'blocked', reason: string): string {
   const plan = latestPlan(run);
-  if (!plan) return 'There is no plan yet: run `jodex plan start`.';
+  if (!plan) return 'There is no plan yet: run `jevmind plan start`.';
   if (plan.decision) return `Plan ${plan.revision.slice(0, 8)} was already marked ${plan.decision}.`;
   if (decision !== 'accept' && !reason.trim()) return 'Give the material reason with source evidence.';
-  if (decision === 'revise' && (run.plans ?? []).length > PLAN_REVISION_BUDGET) return 'The plan revision budget is used up: use `jodex plan block "<reason>"` or ask the developer.';
+  if (decision === 'revise' && (run.plans ?? []).length > PLAN_REVISION_BUDGET) return 'The plan revision budget is used up: use `jevmind plan block "<reason>"` or ask the developer.';
   plan.decision = decision;
   plan.reason = reason || undefined;
-  return decision === 'accept' ? 'Plan accepted. Implement it in this session, then run `jodex check`.' : decision === 'revise' ? 'Revision requested: run `jodex plan start` again.' : 'Plan blocked: report the reason to the developer.';
+  return decision === 'accept' ? 'Plan accepted. Implement it in this session, then run `jevmind check`.' : decision === 'revise' ? 'Revision requested: run `jevmind plan start` again.' : 'Plan blocked: report the reason to the developer.';
 }
 
 export function startTests(root: string, run: Run, cfg: Config): { ok: boolean; text: string } {
@@ -322,7 +308,7 @@ export function startTests(root: string, run: Run, cfg: Config): { ok: boolean; 
 ## Inputs
 - Original requirement: ${run.request || '(see the conversation)'}
 - Files changed so far: ${run.touched.join(', ') || '(none recorded)'}
-Run \`jodex check\` when done and report its output.`;
+Run \`jevmind check\` when done and report its output.`;
   return { ok: true, text: launch('tester', writeBrief(root, run, `tester-brief.md`, brief), brief, run.host, requested) };
 }
 
@@ -390,7 +376,7 @@ async function classifyFindings(root: string, run: Run, review: Review, cfg: Con
 export const PLAN_MARK = '# Plan';
 
 // Called from SubagentStop while the run awaits a role.
-// typed: the host named the subagent's role (Claude Code `jodex:<role>`). Untyped subagents
+// typed: the host named the subagent's role (Claude Code `jevmind:<role>`). Untyped subagents
 // (Codex) count only when their reply has the role's shape, so a helper subagent that finishes
 // first is ignored instead of being recorded as the plan or the review.
 // Returns a block reason when a typed subagent must fix its output (once: the host sets
@@ -413,7 +399,7 @@ export async function recordSubagent(root: string, run: Run, cfg: Config, messag
     const review = latestReview(run)!;
     const parsed = lastJson(message);
     const error = validateReview(parsed, review.snapshotId);
-    if (error && !retry) return `Jodex rejected the ReviewResult: ${error}. End your reply with a corrected fenced \`\`\`json ReviewResult block.`;
+    if (error && !retry) return `Jevmind rejected the ReviewResult: ${error}. End your reply with a corrected fenced \`\`\`json ReviewResult block.`;
     review.at = new Date().toISOString();
     review.agentType = agentType;
     if (error) {
@@ -446,7 +432,7 @@ export const SHELL_WRITES = /(^|[^0-9&])>|\btee\b|\bsed\s+-i|\b(mv|cp|rm|truncat
 // and none of the flags that make these tools write files or run programs.
 // git diff/log/show/blame are left out: diff drivers and textconv (config or GIT_EXTERNAL_DIFF) run programs.
 // Reviewers read the diff from the review packet instead.
-const READ_ONLY = /^\s*(cat|head|tail|ls|grep|rg|wc|git\s+(status|ls-files|rev-parse)|jodex\s+(status|resume))\b[^>|;&`$\n\r{}]*$/;
+const READ_ONLY = /^\s*(cat|head|tail|ls|grep|rg|wc|git\s+(status|ls-files|rev-parse)|jevmind\s+(status|resume))\b[^>|;&`$\n\r{}]*$/;
 // `sed -n 1,60p file` only: the script can print lines and nothing else (no w, e, r or s), and no
 // operand may start with `-`, so `-i` cannot follow the script.
 const SED_PRINT = /^\s*sed\s+-n\s+(['"]?)\d+(,\d+)?p\1(\s+[\w./][\w./-]*)+\s*$/;

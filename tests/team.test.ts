@@ -14,8 +14,8 @@ import { tempRepo } from './helpers.ts';
 
 function repo(jevMode = 'off') {
   const root = tempRepo({ 'src/a.js': 'export const a = 1;\n' });
-  fs.mkdirSync(path.join(root, '.jodex'));
-  fs.writeFileSync(path.join(root, '.jodex/config.toml'), `[risk]\ncritical = ["**/auth/**"]\nhuman_review_required = ["critical"]\n[checks]\ntest = "true"\n[review]\ncross_provider = false\n[jev]\nmode = "${jevMode}"\nconsent = true\n`);
+  fs.mkdirSync(path.join(root, '.jevmind'));
+  fs.writeFileSync(path.join(root, '.jevmind/config.toml'), `[risk]\ncritical = ["**/auth/**"]\nhuman_review_required = ["critical"]\n[checks]\ntest = "true"\n[review]\ncross_provider = false\n[jev]\nmode = "${jevMode}"\nconsent = true\n`);
   return root;
 }
 const ev = (root: string, name: string, extra: object = {}) => ({ hook_event_name: name, session_id: 'S', cwd: root, ...extra });
@@ -26,7 +26,7 @@ const check = (root: string) => {
   runChecks(root, loadConfig(root), r, () => {});
   saveRun(root, r);
 };
-const review = (root: string, body: object) => ev(root, 'SubagentStop', { agent_id: 'A1', agent_type: 'jodex:reviewer', last_assistant_message: 'Done.\n```json\n' + JSON.stringify(body) + '\n```' });
+const review = (root: string, body: object) => ev(root, 'SubagentStop', { agent_id: 'A1', agent_type: 'jevmind:reviewer', last_assistant_message: 'Done.\n```json\n' + JSON.stringify(body) + '\n```' });
 const denied = (out: any) => out?.hookSpecificOutput?.permissionDecision === 'deny';
 
 test('ReviewResult parsing and invariants', () => {
@@ -51,14 +51,14 @@ test('review mode: R0 blocks, one correction, fresh R1 verifies', async () => {
   let r = run0(root);
   const s0 = startReview(root, r, loadConfig(root));
   assert.equal(s0.ok, true);
-  assert.match(s0.text, /subagent_type "jodex:reviewer"/);
+  assert.match(s0.text, /subagent_type "jevmind:reviewer"/);
   saveRun(root, r);
   const snap = r.reviews![0].snapshotId;
   assert.ok(fs.existsSync(path.join(root, r.reviews![0].snapshotDir, 'diff.patch')));
 
   // While the reviewer runs: the worker cannot edit, the reviewer cannot write, the worker may stop.
   assert.ok(denied(await handleHook(write(root, 'src/a.js'))));
-  const sub = { agent_id: 'A1', agent_type: 'jodex:reviewer' };
+  const sub = { agent_id: 'A1', agent_type: 'jevmind:reviewer' };
   assert.ok(denied(await handleHook(write(root, 'src/a.js', sub))));
   assert.ok(denied(await handleHook(ev(root, 'PreToolUse', { tool_name: 'Bash', tool_input: { command: 'rm -rf src' }, ...sub }))));
   assert.ok(denied(await handleHook(ev(root, 'PreToolUse', { tool_name: 'mcp__repl__eval', tool_input: {}, ...sub }))));
@@ -143,7 +143,7 @@ test('collaborative: plan first, same worker challenges, one revision', async ()
   let r = run0(root);
   assert.equal(startPlan(root, r, loadConfig(root)).ok, true);
   saveRun(root, r);
-  const planner = { agent_id: 'P', agent_type: 'jodex:planner' };
+  const planner = { agent_id: 'P', agent_type: 'jevmind:planner' };
   assert.ok(denied(await handleHook(write(root, 'src/a.js', planner))), 'planner is read-only');
   await handleHook(ev(root, 'SubagentStop', { ...planner, last_assistant_message: '# Plan v1\n- change a' }));
   r = run0(root);
@@ -167,7 +167,7 @@ test('tester may write only test files', async () => {
   const r = run0(root);
   r.awaiting = { role: 'tester', since: '' };
   saveRun(root, r);
-  const t = { agent_id: 'T', agent_type: 'jodex:tester' };
+  const t = { agent_id: 'T', agent_type: 'jevmind:tester' };
   assert.ok(denied(await handleHook(write(root, 'src/a.js', t))));
   assert.deepEqual(await handleHook(write(root, 'test/a.test.js', t)), {});
 });
@@ -208,8 +208,8 @@ test('a reported status keeps the run open while the agent still has a step', as
   await handleHook(write(root, 'src/a.js'));
   fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 7;\n');
   check(root);
-  // Next step is `jodex review start` (the agent's), so reporting review_required keeps the run.
-  await handleHook(ev(root, 'Stop', { last_assistant_message: 'Jodex status: review_required' }));
+  // Next step is `jevmind review start` (the agent's), so reporting review_required keeps the run.
+  await handleHook(ev(root, 'Stop', { last_assistant_message: 'Jevmind status: review_required' }));
   assert.equal(listRuns(root)[0].open, true);
 });
 
@@ -286,7 +286,7 @@ test('tester shell edits to production files are caught when it stops', async ()
   fs.writeFileSync(path.join(root, 'test/a.test.js'), '// ok\n');
   const transcript = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tr-')), 'agent-T.jsonl');
   fs.writeFileSync(transcript, JSON.stringify({ type: 'assistant', message: { model: 'claude-sonnet-5-5' } }) + '\n');
-  await handleHook(ev(root, 'SubagentStop', { agent_id: 'T', agent_type: 'jodex:tester', agent_transcript_path: transcript, last_assistant_message: 'tests added' }));
+  await handleHook(ev(root, 'SubagentStop', { agent_id: 'T', agent_type: 'jevmind:tester', agent_transcript_path: transcript, last_assistant_message: 'tests added' }));
   r = run0(root);
   const attempt = r.attempts!.find((a) => a.role === 'tester')!;
   assert.deepEqual([attempt.observed.model, attempt.observed.source, attempt.agentId], ['claude-sonnet-5-5', 'claude-subagent-transcript', 'T'], "the typed child's own transcript names its model");
@@ -297,7 +297,7 @@ test('tester shell edits to production files are caught when it stops', async ()
   assert.equal(evaluate(run0(root), loadConfig(root), sourceIdentity(root)).gates.find((g) => g.gate === 'tester_scope')?.state, 'pending');
 });
 
-test('a run opened by jodex check after shell-only edits takes the session prompt', async () => {
+test('a run opened by jevmind check after shell-only edits takes the session prompt', async () => {
   const root = repo();
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'add the live map' }));
   fs.writeFileSync(path.join(root, 'src/a.js'), 'export const a = 2;\n');

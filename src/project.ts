@@ -11,8 +11,8 @@ export function gitRoot(cwd: string): string | null {
   }
 }
 
-export const jodexDir = (root: string) => path.join(root, '.jodex');
-export const configPath = (root: string) => path.join(jodexDir(root), 'config.toml');
+export const jevmindDir = (root: string) => path.join(root, '.jevmind');
+export const configPath = (root: string) => path.join(jevmindDir(root), 'config.toml');
 export const isInitialized = (root: string) => fs.existsSync(configPath(root));
 
 export type Manifest = Record<string, string>; // repo-relative path -> content hash
@@ -27,7 +27,7 @@ export function manifest(root: string): Manifest {
   });
   const out: Manifest = {};
   for (const rel of listed.split('\0')) {
-    if (!rel || rel === '.jodex' || rel.startsWith('.jodex/')) continue;
+    if (!rel || rel === '.jevmind' || rel.startsWith('.jevmind/')) continue;
     const file = path.join(root, rel);
     try {
       const st = fs.lstatSync(file);

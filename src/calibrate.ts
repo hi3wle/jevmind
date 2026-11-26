@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { type Config, loadConfig } from './config.ts';
-import { configPath, jodexDir } from './project.ts';
+import { configPath, jevmindDir } from './project.ts';
 import { readDecisions } from './decisions.ts';
 import { riskFloor } from './rules.ts';
 import { listRuns } from './run.ts';
@@ -24,7 +24,7 @@ export type CalibrationReport = {
   auto?: boolean;
 };
 
-const logFile = (root: string) => path.join(jodexDir(root), 'calibration.jsonl');
+const logFile = (root: string) => path.join(jevmindDir(root), 'calibration.jsonl');
 
 function reliability(points: Point[]): Reliability {
   const bands = [0, 0.2, 0.4, 0.6, 0.8, 1.0001];
@@ -113,7 +113,7 @@ export function calibrate(root: string, apply: boolean, meta: { closedRuns?: num
     applied,
     ...meta,
   };
-  fs.mkdirSync(jodexDir(root), { recursive: true });
+  fs.mkdirSync(jevmindDir(root), { recursive: true });
   fs.appendFileSync(logFile(root), JSON.stringify(out) + '\n');
   return out;
 }
@@ -122,7 +122,7 @@ export function calibrate(root: string, apply: boolean, meta: { closedRuns?: num
 function writeThreshold(root: string, key: string, value: number) {
   const file = configPath(root);
   let text = fs.readFileSync(file, 'utf8');
-  if (!/^\[jev\.thresholds\]/m.test(text)) text = `${text.replace(/\n*$/, '\n')}\n[jev.thresholds]\n# Written by \`jodex calibrate\`.\n`;
+  if (!/^\[jev\.thresholds\]/m.test(text)) text = `${text.replace(/\n*$/, '\n')}\n[jev.thresholds]\n# Written by \`jevmind calibrate\`.\n`;
   const line = `${key} = ${value}`;
   const re = new RegExp(`^${key}\\s*=.*$`, 'm');
   const section = text.indexOf('[jev.thresholds]');

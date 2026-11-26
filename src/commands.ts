@@ -11,7 +11,7 @@ const DESTRUCTIVE = [
   /\bgit\s+clean\s+-[a-zA-Z]*f/,
 ];
 // Everyday build, test and inspection commands: allowed without asking Jev.
-const ROUTINE = /^\s*(npm\s+(test|t|run|ci|install|i)|node|npx\s+(tsc|vitest|jest|eslint|prettier)|pnpm|yarn|python3?\s+-m\s+(pytest|unittest)|pytest|go\s+(test|build|vet)|cargo\s+(test|build|check|clippy)|make|jodex|git\s+(status|diff|log|show|add|commit|branch|switch|stash\s+list|rev-parse|ls-files|blame)|ls|cat|head|tail|grep|rg|wc|mkdir|touch|echo|printf|pwd|which|cd)\b/;
+const ROUTINE = /^\s*(npm\s+(test|t|run|ci|install|i)|node|npx\s+(tsc|vitest|jest|eslint|prettier)|pnpm|yarn|python3?\s+-m\s+(pytest|unittest)|pytest|go\s+(test|build|vet)|cargo\s+(test|build|check|clippy)|make|jevmind|git\s+(status|diff|log|show|add|commit|branch|switch|stash\s+list|rev-parse|ls-files|blame)|ls|cat|head|tail|grep|rg|wc|mkdir|touch|echo|printf|pwd|which|cd)\b/;
 
 export const isDestructive = (cmd: string) => DESTRUCTIVE.some((r) => r.test(cmd));
 // A heredoc body is data for the command that reads it: `cat > f <<'EOF'` writes a file and

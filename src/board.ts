@@ -6,15 +6,15 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.ts';
 import { readCalibrations } from './calibrate.ts';
 import { type Decision, readDecisions } from './decisions.ts';
-import { jodexDir, readJson, writeJson } from './project.ts';
+import { jevmindDir, readJson, writeJson } from './project.ts';
 import { riskFloor } from './rules.ts';
 import { type Attempt, AWAIT_TTL_MS, listRuns, type ModelPair, type Role, type Run, type Usage } from './run.ts';
 
-export const jodexHome = () => process.env.JODEX_HOME ?? path.join(os.homedir(), '.jodex');
-const registryFile = () => path.join(jodexHome(), 'projects.json');
-export const boardFile = () => path.join(jodexHome(), 'board', 'board.html');
+export const jevmindHome = () => process.env.JEVMIND_HOME ?? path.join(os.homedir(), '.jevmind');
+const registryFile = () => path.join(jevmindHome(), 'projects.json');
+export const boardFile = () => path.join(jevmindHome(), 'board', 'board.html');
 
-// Projects that ran `jodex init`, so the board can find their runs.
+// Projects that ran `jevmind init`, so the board can find their runs.
 export function registerProject(root: string, add: boolean) {
   const roots = new Set(readJson<string[]>(registryFile(), []));
   if (add) roots.add(root);
@@ -200,7 +200,7 @@ export function pipeline(r: Run, intake: Intake, now = Date.now()): StageView[] 
       stage: 'decision',
       status: intake?.source === 'fallback' ? 'warn' : 'done',
       model: intake?.source === 'jev' ? intake.model : 'file rules',
-      provider: intake?.source === 'jev' ? 'typesafe' : 'jodex',
+      provider: intake?.source === 'jev' ? 'typesafe' : 'jevmind',
       detail: `${r.mode} · risk ${r.riskFloor} · by ${r.modeSource ?? 'rule'}${intake?.source === 'jev' ? ` · ${intake.latencyMs} ms` : intake ? ' · Jev failed, rules used' : ''}`,
     },
     roleStage('planner', !!lastPlan, r.mode === 'collaborative', lastPlan ? `plan ${r.plans!.length} · ${lastPlan.decision ?? 'awaiting your challenge'}` : 'plan before code'),
@@ -216,7 +216,7 @@ export function pipeline(r: Run, intake: Intake, now = Date.now()): StageView[] 
       stage: 'checks',
       status: !checks.length ? 'pending' : failedChecks.length ? 'failed' : 'done',
       model: null,
-      provider: 'jodex',
+      provider: 'jevmind',
       detail: checks.length ? checks.map(([n, c]) => `${c.exitCode === 0 ? '✓' : '✗'}${n}`).join(' ') : 'not run yet',
     },
     !review
@@ -348,8 +348,8 @@ export function writeBoard(): string {
   return boardFile();
 }
 
-// `jodex board --live`: the same page on localhost. /events pushes a message whenever a project's
-// .jodex/ changes (hooks write runs and decisions there), and the page then reloads /data.
+// `jevmind board --live`: the same page on localhost. /events pushes a message whenever a project's
+// .jevmind/ changes (hooks write runs and decisions there), and the page then reloads /data.
 export function serveBoard(port: number): Promise<http.Server> {
   const clients = new Set<http.ServerResponse>();
   let pending: NodeJS.Timeout | null = null;
@@ -362,7 +362,7 @@ export function serveBoard(port: number): Promise<http.Server> {
   // shortcut: projects registered after the server started are not watched; the page's 5 s poll covers them.
   const watchers = readJson<string[]>(registryFile(), []).flatMap((root) => {
     try {
-      return [fs.watch(jodexDir(root), { recursive: true }, notify)];
+      return [fs.watch(jevmindDir(root), { recursive: true }, notify)];
     } catch {
       return [];
     }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Jodex Board</title>
+<title>Jevmind Board</title>
 <style>
 :root{
   --bg:#060606;--panel:#0c0c0c;--card:linear-gradient(180deg,#0f0f0f,#090909);--line:#1c1c1b;--line2:#262624;
@@ -119,7 +119,7 @@ td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
 <body>
 <div class="app">
   <aside aria-label="Project and session navigation">
-    <div class="brand"><i></i>jodex</div>
+    <div class="brand"><i></i>jevmind</div>
     <div class="label">Projects</div>
     <div id="projects"></div>
     <div class="label" style="margin-top:18px">Sessions</div>
@@ -176,14 +176,14 @@ td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
       <div class="explain" id="explain"></div>
       <div class="cal" id="cal"></div>
       <div class="tablewrap"><table><thead><tr><th>Prompt</th><th>Workflow (choice)</th><th>Risk (score)</th><th>Missing rule (noul)</th><th>Action</th><th class="num">Latency</th><th>Outcome</th></tr></thead><tbody id="decRows"></tbody></table></div>
-      <div id="calwrap" hidden><div class="sect">Calibration: Jev's probabilities against what happened (written by <code>jodex calibrate</code>, automatic every 10 closed runs)</div><div id="calib" class="explain"></div></div>
+      <div id="calwrap" hidden><div class="sect">Calibration: Jev's probabilities against what happened (written by <code>jevmind calibrate</code>, automatic every 10 closed runs)</div><div id="calib" class="explain"></div></div>
       <div id="d2wrap" hidden><div class="sect">Command gate (D2): shell commands the rules did not settle</div>
       <div class="tablewrap"><table><thead><tr><th>Command</th><th>Jev (score)</th><th>Result</th><th class="num">Latency</th></tr></thead><tbody id="d2"></tbody></table></div></div>
       <div id="d4wrap" hidden><div class="sect">Review findings (D4): reviewer blockers that Jev confirms or disputes</div>
       <div class="tablewrap"><table><thead><tr><th>Finding</th><th>Jev (choice)</th><th>Result</th><th class="num">Latency</th></tr></thead><tbody id="d4"></tbody></table></div></div>
-      <div class="empty" id="decEmpty" hidden>No Jev decisions in this range. Enable them per project with <code>[jev] mode = "enforce"</code> and <code>consent = true</code> in <code>.jodex/config.toml</code> (or <code>jodex init --jev</code>).</div>
+      <div class="empty" id="decEmpty" hidden>No Jev decisions in this range. Enable them per project with <code>[jev] mode = "enforce"</code> and <code>consent = true</code> in <code>.jevmind/config.toml</code> (or <code>jevmind init --jev</code>).</div>
     </div>
-    <div class="note">Measured by Jodex hooks and <code>jodex check</code>. Status comes from check results bound to the current source, not from what the agent says. "Gate" counts finishes the Stop gate sent back. Nothing here is estimated.</div>
+    <div class="note">Measured by Jevmind hooks and <code>jevmind check</code>. Status comes from check results bound to the current source, not from what the agent says. "Gate" counts finishes the Stop gate sent back. Nothing here is estimated.</div>
   </main>
 </div>
 <script>
@@ -203,12 +203,12 @@ const fmtDur = (ms) => { if (ms == null) return '—'; const s = Math.round(ms /
 const fmtDate = (d) => new Date(d).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const median = (xs) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 
-try { const t = new URLSearchParams(location.search).get('theme') || localStorage.getItem('jodex-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+try { const t = new URLSearchParams(location.search).get('theme') || localStorage.getItem('jevmind-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
 $('theme').onclick = () => {
   const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
   const next = cur === 'light' ? 'dark' : 'light';
   document.documentElement.dataset.theme = next;
-  try { localStorage.setItem('jodex-theme', next); } catch {}
+  try { localStorage.setItem('jevmind-theme', next); } catch {}
 };
 
 function scoped() {
@@ -270,7 +270,7 @@ function sessions() {
 }
 
 const hostName = (h) => (h === 'codex' ? 'Codex' : h === 'claude-code' ? 'Claude' : 'CLI');
-const PROVIDER_NAMES = { 'claude-code': 'Claude Code', codex: 'Codex', typesafe: 'TypeSafe', jodex: 'Jodex', cli: 'CLI' };
+const PROVIDER_NAMES = { 'claude-code': 'Claude Code', codex: 'Codex', typesafe: 'TypeSafe', jevmind: 'Jevmind', cli: 'CLI' };
 const WINDOW_MS = 15 * 60e3;
 const ago = (t) => fmtDur(Date.now() - new Date(t));
 const inScope = (x) => (!state.project || x.project === state.project) && (!state.session || x.sessionId === state.session);
@@ -288,12 +288,12 @@ function renderLive() {
   const failed15 = jev.filter((d) => d.source !== 'jev').length + reviews15.filter((v) => v.status === 'invalid').length;
   const waiting = runs.filter((r) => r.awaiting && !r.awaiting.overdue).length, overdue = runs.filter((r) => r.awaiting?.overdue).length;
   $('liveOn').classList.toggle('yes', LIVE);
-  $('liveSub').textContent = LIVE ? `updated ${new Date(DATA.generatedAt).toLocaleTimeString()}` : 'snapshot: run `jodex board --live` for real time';
+  $('liveSub').textContent = LIVE ? `updated ${new Date(DATA.generatedAt).toLocaleTimeString()}` : 'snapshot: run `jevmind board --live` for real time';
   $('liveNums').innerHTML = `<b>${runs.filter((r) => r.open).length}</b> open runs · <b>${waiting}</b> waiting for a result${overdue ? ` · <b>${overdue}</b> overdue` : ''} · <b>${((jev.length + reviews15.length) / 15).toFixed(1)}</b> provider calls/min · <b>${failed15}</b> failed, 15 min`;
   // Providers: which models run where right now (or in the window).
   const provs = new Map();
   for (const r of runs) for (const p of r.pipeline) {
-    if (!p.provider || p.provider === 'jodex' || ['skipped', 'pending'].includes(p.status)) continue;
+    if (!p.provider || p.provider === 'jevmind' || ['skipped', 'pending'].includes(p.status)) continue;
     const x = provs.get(p.provider) || { models: new Set(), busy: new Set() };
     if (p.model) x.models.add(p.model);
     if (p.status === 'running') x.busy.add(p.stage);
@@ -314,7 +314,7 @@ function renderLive() {
     const lane = el('section', 'lane'), info = el('button', 'lrun');
     info.type = 'button'; info.dataset.run = `${r.project}/${r.runId}`;
     info.setAttribute('aria-pressed', String(!!r.sessionId && state.session === r.sessionId));
-    info.append(el('div', 'n', r.request || '(started by jodex check)'), el('div', 'm', `${hostName(r.host)} · ${r.project} · ${r.runId} · updated ${ago(r.updatedAt)} ago`));
+    info.append(el('div', 'n', r.request || '(started by jevmind check)'), el('div', 'm', `${hostName(r.host)} · ${r.project} · ${r.runId} · updated ${ago(r.updatedAt)} ago`));
     info.title = `${r.request}\n\nFiles:\n${r.paths.join('\n')}`;
     if (r.sessionId) info.onclick = () => { state.session = state.session === r.sessionId ? null : r.sessionId; render(); };
     lane.append(info);
@@ -395,7 +395,7 @@ const complete = (r) => r.usage && r.usage.total != null && !r.usage.partial;
 const fmtTok = (n) => (n == null ? '—' : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(Math.round(n)));
 const roleTok = (v) => (v === 'n/a' ? 'not used' : v == null ? 'unknown' : fmtTok(v));
 
-// This session against the previous one in the same project (computed by Jodex, quality first).
+// This session against the previous one in the same project (computed by Jevmind, quality first).
 function renderCompare() {
   const box = $('compare'), c = state.session && (DATA.sessions || {})[state.session];
   box.hidden = !c; if (!c) return;
@@ -458,7 +458,7 @@ function renderTable(runs) {
   $('empty').hidden = list.length > 0;
   for (const r of list) {
     const tr = el('tr');
-    const c1 = el('td'); const req = el('div', 'req', r.request || '(started by jodex check)'); req.title = r.request;
+    const c1 = el('td'); const req = el('div', 'req', r.request || '(started by jevmind check)'); req.title = r.request;
     c1.append(req, el('div', 'meta', [r.project, fmtDate(r.createdAt), r.decision].filter(Boolean).join(' · ')));
     const checks = el('td', 'meta'); checks.textContent = r.checks.length ? r.checks.map((c) => `${c.exitCode === 0 ? '✓' : '✗'} ${c.name}`).join('  ') : 'not run';
     const st = el('td'); st.append(el('span', `pill s-${r.status}`, r.status.replace(/_/g, ' ')));
@@ -548,7 +548,7 @@ function renderDecisions() {
   renderCalibration();
   $('decCount').textContent = String(all.length);
   const t = (jevd[0] || all[0] || {}).thresholds || { clarify: 0.6, missingRule: 0.7, raiseRisk: 0.5, recommendMode: 0.5 };
-  $('explain').textContent = `At each prompt Jodex asks Jev four typed questions about the prompt and project metadata (never source): does it change files (noul), which workflow fits (choice of solo, review, collaborative, clarify), how bad a wrong implementation would be (score low/elevated/critical), and is a business rule missing (noul). Jev returns a probability for every option. Jodex acts only on probabilities over fixed cut-offs: ask the developer first when clarify ≥ ${t.clarify} or missing rule ≥ ${t.missingRule}; raise the risk floor when elevated or critical ≥ ${t.raiseRisk}; record the workflow when its probability ≥ ${t.recommendMode}. Jev can only make a run stricter, never looser than the file rules. Timeouts and errors fall back to rules alone. TypeSafe states these probabilities are calibrated; the boxes below check that claim against what actually happened here.`;
+  $('explain').textContent = `At each prompt Jevmind asks Jev four typed questions about the prompt and project metadata (never source): does it change files (noul), which workflow fits (choice of solo, review, collaborative, clarify), how bad a wrong implementation would be (score low/elevated/critical), and is a business rule missing (noul). Jev returns a probability for every option. Jevmind acts only on probabilities over fixed cut-offs: ask the developer first when clarify ≥ ${t.clarify} or missing rule ≥ ${t.missingRule}; raise the risk floor when elevated or critical ≥ ${t.raiseRisk}; record the workflow when its probability ≥ ${t.recommendMode}. Jev can only make a run stricter, never looser than the file rules. Timeouts and errors fall back to rules alone. TypeSafe states these probabilities are calibrated; the boxes below check that claim against what actually happened here.`;
   const settled = jevd.filter((d) => d.outcome);
   const brier = settled.length ? settled.reduce((s, d) => s + (d.answers.isChange - (d.outcome.changed ? 1 : 0)) ** 2, 0) / settled.length : null;
   const changeHits = settled.filter((d) => (d.answers.isChange >= 0.5) === d.outcome.changed).length;

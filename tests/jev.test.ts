@@ -36,8 +36,8 @@ test('redaction removes common secrets', () => {
 
 function jevRepo(mode: string) {
   const root = tempRepo();
-  fs.mkdirSync(path.join(root, '.jodex'));
-  fs.writeFileSync(path.join(root, '.jodex/config.toml'), `[risk]\ncritical = []\n[checks]\ntest = "true"\n[review]\ncross_provider = false\n[jev]\nmode = "${mode}"\nconsent = true\n`);
+  fs.mkdirSync(path.join(root, '.jevmind'));
+  fs.writeFileSync(path.join(root, '.jevmind/config.toml'), `[risk]\ncritical = []\n[checks]\ntest = "true"\n[review]\ncross_provider = false\n[jev]\nmode = "${mode}"\nconsent = true\n`);
   return root;
 }
 const ev = (root: string, name: string, extra: object = {}) => ({ hook_event_name: name, session_id: 'S', cwd: root, ...extra });
@@ -79,7 +79,7 @@ test('shadow logs without acting; failures fall back to rules', async () => {
 test('session file is removed once the turn ends', async () => {
   const root = jevRepo('off');
   await handleHook(ev(root, 'UserPromptSubmit', { prompt: 'q' }));
-  const files = () => fs.readdirSync(path.join(root, '.jodex/sessions')).sort();
+  const files = () => fs.readdirSync(path.join(root, '.jevmind/sessions')).sort();
   assert.deepEqual(files(), ['S.json', 'S.prompts.json']);
   await handleHook(ev(root, 'Stop', { last_assistant_message: 'answer' }));
   assert.deepEqual(files(), ['S.prompts.json'], 'the recent prompts outlive the turn');

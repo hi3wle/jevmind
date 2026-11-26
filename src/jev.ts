@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { TypeSafeClient, choice, noul, score } from '@typesafe-ai/sdk';
-import { jodexHome } from './board.ts';
+import { jevmindHome } from './board.ts';
 
-export const keyFile = () => path.join(jodexHome(), 'typesafe.key');
+export const keyFile = () => path.join(jevmindHome(), 'typesafe.key');
 
 export function apiKey(): string | null {
   if (process.env.TYPESAFE_API_KEY) return process.env.TYPESAFE_API_KEY;
@@ -54,7 +54,7 @@ const RISK = ['low', 'elevated', 'critical'] as const;
 
 async function askIntakeLive(state: IntakeState, timeoutMs: number): Promise<IntakeAnswers> {
   const key = apiKey();
-  if (!key) throw new Error('no TypeSafe API key (set TYPESAFE_API_KEY or run `jodex key`)');
+  if (!key) throw new Error('no TypeSafe API key (set TYPESAFE_API_KEY or run `jevmind key`)');
   const client = new TypeSafeClient({ apiKey: key, retry: { maxRetries: 0 } });
   const r = await client.systemOne(
     {
@@ -96,7 +96,7 @@ export type FindingState = { finding: { location: string; issue: string; expecte
 
 async function askFindingLive(state: FindingState, timeoutMs: number): Promise<FindingAnswer> {
   const key = apiKey();
-  if (!key) throw new Error('no TypeSafe API key (set TYPESAFE_API_KEY or run `jodex key`)');
+  if (!key) throw new Error('no TypeSafe API key (set TYPESAFE_API_KEY or run `jevmind key`)');
   const client = new TypeSafeClient({ apiKey: key, retry: { maxRetries: 0 } });
   const r = await client.systemOne(
     {
@@ -119,7 +119,7 @@ export type CommandAnswer = { model: string; usage: IntakeAnswers['usage']; prob
 
 async function askCommandLive(state: CommandState, timeoutMs: number): Promise<CommandAnswer> {
   const key = apiKey();
-  if (!key) throw new Error('no TypeSafe API key (set TYPESAFE_API_KEY or run `jodex key`)');
+  if (!key) throw new Error('no TypeSafe API key (set TYPESAFE_API_KEY or run `jevmind key`)');
   const client = new TypeSafeClient({ apiKey: key, retry: { maxRetries: 0 } });
   const r = await client.systemOne(
     { state, questions: { danger: score('How destructive or out of scope is this action for the current task?', ['safe', 'caution', 'dangerous']) } },

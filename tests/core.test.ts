@@ -14,8 +14,9 @@ const cfg = (checks: Record<string, string>, critical: string[] = []) => ({
   risk: { critical, elevated: ['package.json'], humanReviewRequired: ['critical' as const] },
   checks,
   jev: { mode: 'off' as const, consent: false, dataLevel: 2 as const, thresholds: { raiseRisk: 0.5 } },
+  agents: ['claude-code', 'codex'] as Config['agents'],
   review: { crossProvider: false, claudeModel: 'sonnet' },
-  models: { mode: 'off' as const, roles: {}, levels: {} as Config['models']['levels'] }, // off: levels are never read
+  models: { mode: 'off' as const, routes: {} as Config['models']['routes'] }, // off: routes are never read
 });
 const run = (over: Partial<Run> = {}): Run => ({
   runId: 'r', sessionId: 's', host: null, model: null, request: '', mode: 'solo', riskFloor: 'low', touched: [], checks: {},
@@ -59,11 +60,11 @@ test('write paths from Claude tools and Codex patches', () => {
   assert.deepEqual(writePaths('apply_patch', { command: patch }, root, root), ['a.txt', 'src/b.ts', 'src/c.ts', 'd.txt']);
 });
 
-test('identity covers untracked files and ignores .jodex', () => {
+test('identity covers untracked files and ignores .jevmind', () => {
   const root = tempRepo();
   const t0 = sourceIdentity(root);
-  fs.mkdirSync(path.join(root, '.jodex'));
-  fs.writeFileSync(path.join(root, '.jodex', 'x.json'), '{}');
+  fs.mkdirSync(path.join(root, '.jevmind'));
+  fs.writeFileSync(path.join(root, '.jevmind', 'x.json'), '{}');
   assert.equal(sourceIdentity(root), t0);
   fs.writeFileSync(path.join(root, 'new.txt'), 'n');
   const t1 = sourceIdentity(root);

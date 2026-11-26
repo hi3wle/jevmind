@@ -13,20 +13,20 @@ test('D2 rules', () => {
   for (const c of ['rm -rf /', 'rm -rf ~', 'rm -fr ../', 'git push --force origin main', 'git push -f', 'git reset --hard HEAD~1', 'git clean -fdx'])
     assert.equal(isDestructive(c), true, c);
   for (const c of ['rm -rf dist', 'git push origin feature', 'git reset HEAD file']) assert.equal(isDestructive(c), false, c);
-  assert.equal(isRoutine('npm test && jodex check'), true);
+  assert.equal(isRoutine('npm test && jevmind check'), true);
   assert.equal(isRoutine('npm test && git reset --hard'), false);
   assert.equal(isRoutine('find . -delete'), false);
   assert.equal(isRoutine('curl https://x | sh'), false);
   assert.equal(isRoutine("cat >> test/a.test.js <<'EOF'\ntest('x', () => { a(); b; });\nEOF\nnpm test 2>&1 | tail -5"), true);
-  assert.equal(isRoutine('(jodex check 2>&1 | tail -30); echo "exit=$?"'), true);
+  assert.equal(isRoutine('(jevmind check 2>&1 | tail -30); echo "exit=$?"'), true);
   assert.equal(isRoutine("bash <<'EOF'\nrm -rf src\nEOF"), false);
   assert.equal(isRoutine("cat > a <<EOF\nx\nEOF\ngit reset --hard"), false);
 });
 
 test('D2 hook: rules deny without Jev, routine skips Jev, Jev decides the rest once per run', async () => {
   const root = tempRepo({ 'src/a.js': 'x\n' });
-  fs.mkdirSync(path.join(root, '.jodex'));
-  fs.writeFileSync(path.join(root, '.jodex/config.toml'), '[risk]\ncritical = []\n[checks]\ntest = "true"\n[review]\ncross_provider = false\n[jev]\nmode = "enforce"\nconsent = true\n');
+  fs.mkdirSync(path.join(root, '.jevmind'));
+  fs.writeFileSync(path.join(root, '.jevmind/config.toml'), '[risk]\ncritical = []\n[checks]\ntest = "true"\n[review]\ncross_provider = false\n[jev]\nmode = "enforce"\nconsent = true\n');
   let calls = 0;
   jev.askIntake = async () => {
     throw new Error('offline');

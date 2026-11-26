@@ -1,8 +1,8 @@
 {
-  "name": "jodex",
-  "description": "Jodex adaptive coding harness",
+  "name": "jevmind",
+  "description": "Jevmind adaptive coding harness",
   "owner": { "name": "hieventure" },
   "plugins": [
-    { "name": "jodex", "description": "Routes coding tasks, gates completion on current check evidence.", "source": "./plugin" }
+    { "name": "jevmind", "description": "Routes coding tasks, gates completion on current check evidence.", "source": "./plugin" }
   ]
 }

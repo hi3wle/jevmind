@@ -1,16 +1,19 @@
 {
   "hooks": {
     "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "jodex hook", "timeout": 30 }] }
+      { "hooks": [{ "type": "command", "command": "jevmind hook", "timeout": 30 }] }
     ],
     "PreToolUse": [
-      { "matcher": "*", "hooks": [{ "type": "command", "command": "jodex hook", "timeout": 30 }] }
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "jevmind hook", "timeout": 30 }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "jevmind hook", "timeout": 30 }] }
     ],
     "SubagentStop": [
-      { "hooks": [{ "type": "command", "command": "jodex hook", "timeout": 30 }] }
+      { "hooks": [{ "type": "command", "command": "jevmind hook", "timeout": 30 }] }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "jodex hook", "timeout": 60 }] }
+      { "hooks": [{ "type": "command", "command": "jevmind hook", "timeout": 60 }] }
     ]
   }
 }

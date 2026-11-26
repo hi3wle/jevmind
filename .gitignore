@@ -4,7 +4,7 @@ __pycache__/
 .env.*
 node_modules/
 plugin/dist/
-.jodex/runs/
-.jodex/sessions/
-.jodex/decisions.jsonl
-.jodex/calibration.jsonl
+.jevmind/runs/
+.jevmind/sessions/
+.jevmind/decisions.jsonl
+.jevmind/calibration.jsonl

@@ -20,8 +20,8 @@ test('cut proposal needs enough labels of both kinds, then maximizes balanced ac
 
 function lab() {
   const root = tempRepo();
-  fs.mkdirSync(path.join(root, '.jodex'));
-  fs.writeFileSync(path.join(root, '.jodex/config.toml'), '[risk]\ncritical = ["**/auth/**"]\n[checks]\ntest = "true"\n[jev]\nmode = "enforce"\nconsent = true\n');
+  fs.mkdirSync(path.join(root, '.jevmind'));
+  fs.writeFileSync(path.join(root, '.jevmind/config.toml'), '[risk]\ncritical = ["**/auth/**"]\n[checks]\ntest = "true"\n[jev]\nmode = "enforce"\nconsent = true\n');
   // 24 closed runs: auth edits are risky by rule; Jev's risk probability separates them at ~0.65.
   for (let i = 0; i < 24; i++) {
     const risky = i % 2 === 0;
@@ -40,11 +40,11 @@ test('calibrate --apply moves the risk cut, logs it, and the config clamps it', 
   assert.equal(r.applied, true);
   assert.ok(r.raiseRisk.proposed! > 0.55 && r.raiseRisk.proposed! <= 0.85, String(r.raiseRisk.proposed));
   assert.equal(loadConfig(root).jev.thresholds.raiseRisk, r.raiseRisk.proposed);
-  assert.match(fs.readFileSync(path.join(root, '.jodex/config.toml'), 'utf8'), /\[jev\.thresholds\]\n# Written by `jodex calibrate`\.\nraise_risk = /);
+  assert.match(fs.readFileSync(path.join(root, '.jevmind/config.toml'), 'utf8'), /\[jev\.thresholds\]\n# Written by `jevmind calibrate`\.\nraise_risk = /);
   assert.equal(readCalibrations(root).length, 1);
-  fs.appendFileSync(path.join(root, '.jodex/config.toml'), ''); // second apply keeps one line
+  fs.appendFileSync(path.join(root, '.jevmind/config.toml'), ''); // second apply keeps one line
   calibrate(root, true);
-  assert.equal((fs.readFileSync(path.join(root, '.jodex/config.toml'), 'utf8').match(/raise_risk/g) ?? []).length, 1);
+  assert.equal((fs.readFileSync(path.join(root, '.jevmind/config.toml'), 'utf8').match(/raise_risk/g) ?? []).length, 1);
 });
 
 test('automatic calibration runs once per 10 closed runs', () => {
